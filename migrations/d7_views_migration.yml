@@ -1,0 +1,27 @@
+id: d7_views_migration
+label: Views migration
+audit: true
+migration_tags:
+  - Drupal 7
+  - Views
+source:
+  plugin: d7_views_migration
+process:
+  id: name
+  label: name
+  module: human_name
+  description: description
+  tag: tag
+  base_table: base_table
+  display: display
+
+  # human_name: human_name
+  # core: core
+  # display_id: id
+  # base_field: base_field
+  # display_title: display_title
+  # display_plugin: display_plugin
+  # display_position: position
+  # display_options: display_options
+destination:
+  plugin: entity:view
