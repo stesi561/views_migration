@@ -8,13 +8,14 @@ source:
   plugin: d7_views_migration
 process:
   id: name
-  label: name
-  module: human_name
+  label: human_name
   description: description
   tag: tag
   base_table: base_table
+  base_field: base_field
   display: display
 
+  # module: human_name
   # human_name: human_name
   # core: core
   # display_id: id
