@@ -1,6 +1,6 @@
 id: d7_views_migration
 label: Views migration
-audit: true
+audit: false
 migration_tags:
   - Drupal 7
   - Views
