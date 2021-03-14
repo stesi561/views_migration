@@ -129,7 +129,7 @@ class ViewsMigration extends FieldableEntity {
       $display_options = $this->alterDisplayOptions($display_options, 'filters', $base_table_array, $entity_type, $bt);
     }
     if (isset($display_options['fields'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_type, $bt); 
+      $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_type, $bt);
     }
     return $display_options;
   }
@@ -171,63 +171,62 @@ class ViewsMigration extends FieldableEntity {
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     foreach ($fields as $key => $data) {
-        if (isset($data['type'])) {
-          $types =[
-            'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled', 
-            'boolean', 'unicode-yes-no', 'custom',
-          ];
-          if (in_array($data['type'], $types)) {
-            $fields[$key]['type'] = 'boolean';
-            $fields[$key]['settings']['format'] = $data['type'];
-            $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
-            $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
-          }
+      if (isset($data['type'])) {
+        $types = [
+          'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled', 
+          'boolean', 'unicode-yes-no', 'custom',
+        ];
+        if (in_array($data['type'], $types)) {
+          $fields[$key]['type'] = 'boolean';
+          $fields[$key]['settings']['format'] = $data['type'];
+          $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
+          $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
         }
-        if (isset($data['field'])) {
-          $types = [
-            'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 
-          ];
-          $table_map = [
-            'views_entity_node' => 'node',
-            'users' => 'users',
-            'comment' => 'comment',
-          ];
-          if (in_array($data['field'], $types)) {
-            $fields[$key]['table'] = $table_map[$data['table']];
-          }
+      }
+      if (isset($data['field'])) {
+        $types = [
+          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment',
+        ];
+        $table_map = [
+          'views_entity_node' => 'node',
+          'users' => 'users',
+          'comment' => 'comment',
+        ];
+        if (in_array($data['field'], $types)) {
+          $fields[$key]['table'] = $table_map[$data['table']];
         }
-          
-        if (isset($data['table'])) {
-          if (isset($base_table_array[$data['table']])) {
-            $entity_detail = $base_table_array[$data['table']];
-            $fields[$key]['table'] = $entity_detail['data_table'];
-          }
-          else{
-            $result = mb_substr($fields[$key]['table'], 0, 10);
-            if ($result == 'field_data') {
-              $name = substr($fields[$key]['table'], 10);
-              $table = $entity_type . '_' . $name;
-              $fields[$key]['table'] = $table;
-              /* if($db_schema->fieldExists($table, $fields[$key]['field'])){
-                print_r("Exists");
-              }
-              else{
-                $table_fields_suffix =['_value','_target_id'];
-                foreach ($table_fields_suffix as $value) {
-                  $field = $data['field'].$value;
-                  if($db_schema->fieldExists($table, $field)){
-                    print_r("$field in $table exists\n");
-                    $fields[$key]['field'] = $field;
-                    break;
-                  }
-                }   
-              } */
+      }
+      if (isset($data['table'])) {
+        if (isset($base_table_array[$data['table']])) {
+          $entity_detail = $base_table_array[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
+        else{
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
+            $table = $entity_type . '_' . $name;
+            $fields[$key]['table'] = $table;
+            /* if($db_schema->fieldExists($table, $fields[$key]['field'])){
+              print_r("Exists");
             }
             else{
-              /* $fields[$key]['field'] = $bt; */
-            }
+              $table_fields_suffix =['_value','_target_id'];
+              foreach ($table_fields_suffix as $value) {
+                $field = $data['field'].$value;
+                if($db_schema->fieldExists($table, $field)){
+                  print_r("$field in $table exists\n");
+                  $fields[$key]['field'] = $field;
+                  break;
+                }
+              }   
+            }*/
+          }
+          else {
+            /* $fields[$key]['field'] = $bt; */
           }
         }
+      }
     }
     $display_options[$option] = $fields;
     return $display_options;

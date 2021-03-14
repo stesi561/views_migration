@@ -19,15 +19,14 @@ This module provides views migrate from drupal 7 to drupal 8 or 9.
 REQUIREMENTS
 ------------
 
- * This module requires migrate_plus and migrate_tools module for command-line migration
+ * This module requires migrate_plus module.
 
 INSTALLATION
 ------------
 
 The installation of this module is like other Drupal modules.
 
- 1. Copy/upload the views_migration module to the modules directory of your Drupal
-   installation.
+ 1. Copy/upload the views_migration module to the modules directory.
 
  2. Enable the 'views_migration' module and desired sub-modules in 'Extend'.
    (/admin/modules)
