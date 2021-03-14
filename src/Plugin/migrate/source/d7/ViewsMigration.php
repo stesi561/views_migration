@@ -201,28 +201,12 @@ class ViewsMigration extends FieldableEntity {
           $entity_detail = $base_table_array[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
-        else{
+        else {
           $result = mb_substr($fields[$key]['table'], 0, 10);
           if ($result == 'field_data') {
             $name = substr($fields[$key]['table'], 10);
             $table = $entity_type . '_' . $name;
             $fields[$key]['table'] = $table;
-            /*
-            if ($db_schema->fieldExists($table, $fields[$key]['field'])) {
-              print_r("Exists");
-            }
-            else {
-              $table_fields_suffix = ['_value', '_target_id'];
-              foreach ($table_fields_suffix as $value) {
-                $field = $data['field'] . $value;
-                if($db_schema->fieldExists($table, $field)){
-                  print_r("$field in $table exists\n");
-                  $fields[$key]['field'] = $field;
-                  break;
-                }
-              }
-            }
-            */
           }
           else {
             /* $fields[$key]['field'] = $bt; */
