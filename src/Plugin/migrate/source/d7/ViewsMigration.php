@@ -173,7 +173,7 @@ class ViewsMigration extends FieldableEntity {
     foreach ($fields as $key => $data) {
       if (isset($data['type'])) {
         $types = [
-          'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled', 
+          'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
           'boolean', 'unicode-yes-no', 'custom',
         ];
         if (in_array($data['type'], $types)) {
@@ -207,20 +207,22 @@ class ViewsMigration extends FieldableEntity {
             $name = substr($fields[$key]['table'], 10);
             $table = $entity_type . '_' . $name;
             $fields[$key]['table'] = $table;
-            /* if($db_schema->fieldExists($table, $fields[$key]['field'])){
+            /*
+            if ($db_schema->fieldExists($table, $fields[$key]['field'])) {
               print_r("Exists");
             }
-            else{
-              $table_fields_suffix =['_value','_target_id'];
+            else {
+              $table_fields_suffix = ['_value', '_target_id'];
               foreach ($table_fields_suffix as $value) {
-                $field = $data['field'].$value;
+                $field = $data['field'] . $value;
                 if($db_schema->fieldExists($table, $field)){
                   print_r("$field in $table exists\n");
                   $fields[$key]['field'] = $field;
                   break;
                 }
-              }   
-            }*/
+              }
+            }
+            */
           }
           else {
             /* $fields[$key]['field'] = $bt; */
