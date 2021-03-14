@@ -74,7 +74,7 @@ class ViewsMigration extends FieldableEntity {
     $query->condition('vid', $vid);
     $execute = $query->execute();
     $display = [];
-    $base_table_array = $this->BasetableArray();
+    $base_table_array = $this->baseTableArray();
     $entity_base_table = '';
     $entity_type = '';
     $base_field = NULL;
@@ -105,44 +105,41 @@ class ViewsMigration extends FieldableEntity {
     $row->setSourceProperty('display', $display);
     return parent::prepareRow($row);
   }
-  
+
   /**
    * ViewsMigration convertDisplayOptions.
    *
    * @param array $display_options
    *   Views dispaly options.
-   *
    * @param array $base_table_array
    *   Entities Base table array.
-   *
    * @param string $entity_type
    *   Views base entity type.
-   *
    * @param string $bt
    *   Views base table.
    */
   public function convertDisplayOptions(array $display_options, array $base_table_array, string $entity_type, string $bt) {
-    if(isset($display_options['relationships'])) {
+    if (isset($display_options['relationships'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'relationships', $base_table_array, $entity_type, $bt);
     }
-    if(isset($display_options['sorts'])) {
+    if (isset($display_options['sorts'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'sorts', $base_table_array, $entity_type, $bt);
     }
-    if(isset($display_options['filters'])) {
+    if (isset($display_options['filters'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'filters', $base_table_array, $entity_type, $bt);
     }
-    if(isset($display_options['fields'])) {
+    if (isset($display_options['fields'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_type, $bt); 
     }
     return $display_options;
   }
 
   /**
-   * ViewsMigration BasetableArray.
+   * ViewsMigration baseTableArray.
    *
-   * This function give the entities base table array
+   * This function give the entities base table array.
    */
-  public function BasetableArray() {
+  public function baseTableArray() {
     $base_table_array = [];
     $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
     foreach ($entity_list_def as $id => $entity_def) {
@@ -161,82 +158,79 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $display_options
    *   Views dispaly options.
-   *
-   * @param array $option
+   * @param string $option
    *   View section option.
-   *
    * @param array $base_table_array
    *   Entities Base table array.
-   *
    * @param string $entity_type
    *   Views base entity type.
-   *
    * @param string $bt
    *   Views base table.
    */
-  public function alterDisplayOptions($display_options, $option, $base_table_array, $entity_type, $bt) {
-      $db_schema = Database::getConnection()->schema();
-      $fields = $display_options[$option];
-      foreach ($fields as $key => $data) {
-          if(isset($data['type'])){
-            $types =[
-              'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled', 
-              'boolean', 'unicode-yes-no', 'custom',
-            ];
-            if(in_array($data['type'], $types)){
-              $fields[$key]['type'] = 'boolean';
-              $fields[$key]['settings']['format'] = $data['type'];
-              $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
-              $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
-            }
+  public function alterDisplayOptions(array $display_options, string $option, array $base_table_array, string $entity_type, string $bt) {
+    $db_schema = Database::getConnection()->schema();
+    $fields = $display_options[$option];
+    foreach ($fields as $key => $data) {
+        if (isset($data['type'])) {
+          $types =[
+            'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled', 
+            'boolean', 'unicode-yes-no', 'custom',
+          ];
+          if (in_array($data['type'], $types)) {
+            $fields[$key]['type'] = 'boolean';
+            $fields[$key]['settings']['format'] = $data['type'];
+            $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
+            $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
           }
-          if (isset($data['field'])) {
-            $types = [
-              'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 
-            ];
-            $table_map = [
-              'views_entity_node' => 'node',
-              'users' => 'users',
-              'comment' => 'comment',
-            ];
-            if(in_array($data['field'], $types)){
-              $fields[$key]['table'] = $table_map[$data['table']];
-            }
+        }
+        if (isset($data['field'])) {
+          $types = [
+            'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 
+          ];
+          $table_map = [
+            'views_entity_node' => 'node',
+            'users' => 'users',
+            'comment' => 'comment',
+          ];
+          if (in_array($data['field'], $types)) {
+            $fields[$key]['table'] = $table_map[$data['table']];
           }
-            
-          if(isset($data['table'])){
-            if (isset($base_table_array[$data['table']])) {
-              $entity_detail = $base_table_array[$data['table']];
-              $fields[$key]['table'] = $entity_detail['data_table'];
-            }
-            else{
-              $result = mb_substr($fields[$key]['table'], 0, 10);
-              if($result == 'field_data'){
-                $name = substr($fields[$key]['table'], 10);
-                $table = $entity_type . '_' . $name;
-                $fields[$key]['table'] = $table;
-                /* if($db_schema->fieldExists($table, $fields[$key]['field'])){
-                  print_r("Exists");
-                }
-                else{
-                  $table_fields_suffix =['_value','_target_id'];
-                  foreach ($table_fields_suffix as $value) {
-                    $field = $data['field'].$value;
-                    if($db_schema->fieldExists($table, $field)){
-                      print_r("$field in $table exists\n");
-                      $fields[$key]['field'] = $field;
-                      break;
-                    }
-                  }   
-                } */
+        }
+          
+        if (isset($data['table'])) {
+          if (isset($base_table_array[$data['table']])) {
+            $entity_detail = $base_table_array[$data['table']];
+            $fields[$key]['table'] = $entity_detail['data_table'];
+          }
+          else{
+            $result = mb_substr($fields[$key]['table'], 0, 10);
+            if ($result == 'field_data') {
+              $name = substr($fields[$key]['table'], 10);
+              $table = $entity_type . '_' . $name;
+              $fields[$key]['table'] = $table;
+              /* if($db_schema->fieldExists($table, $fields[$key]['field'])){
+                print_r("Exists");
               }
               else{
-                /* $fields[$key]['field'] = $bt; */
-              }
+                $table_fields_suffix =['_value','_target_id'];
+                foreach ($table_fields_suffix as $value) {
+                  $field = $data['field'].$value;
+                  if($db_schema->fieldExists($table, $field)){
+                    print_r("$field in $table exists\n");
+                    $fields[$key]['field'] = $field;
+                    break;
+                  }
+                }   
+              } */
+            }
+            else{
+              /* $fields[$key]['field'] = $bt; */
             }
           }
-      }
-      $display_options[$option] = $fields;
-      return $display_options;
+        }
+    }
+    $display_options[$option] = $fields;
+    return $display_options;
   }
+
 }
