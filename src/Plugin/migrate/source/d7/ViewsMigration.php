@@ -91,6 +91,11 @@ class ViewsMigration extends FieldableEntity {
     }
     $row->setSourceProperty('base_table', $entity_base_table);
     $row->setSourceProperty('base_field', $base_field);
+    $core_views_cache_options = [
+      'none',
+      'tag',
+      'time',
+    ];
     while ($result = $execute->fetchAssoc()) {
       $display_options = $result['display_options'];
       $id = $result['id'];
@@ -99,6 +104,13 @@ class ViewsMigration extends FieldableEntity {
       $display[$id]['id'] = $result['id'];
       $display[$id]['display_title'] = $result['display_title'];
       $display[$id]['position'] = $result['position'];
+      if(isset($display_options['cache'])) {
+        if(!in_array($display_options['cache']['type'], $core_views_cache_options)) {
+          $display_options['cache'] = [
+            'type' => 'none',
+          ];
+        }
+      }
       $display_options = $this->convertDisplayOptions($display_options, $base_table_array, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
