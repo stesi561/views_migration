@@ -104,8 +104,8 @@ class ViewsMigration extends FieldableEntity {
       $display[$id]['id'] = $result['id'];
       $display[$id]['display_title'] = $result['display_title'];
       $display[$id]['position'] = $result['position'];
-      if(isset($display_options['cache'])) {
-        if(!in_array($display_options['cache']['type'], $core_views_cache_options)) {
+      if (isset($display_options['cache'])) {
+        if (!in_array($display_options['cache']['type'], $core_views_cache_options)) {
           $display_options['cache'] = [
             'type' => 'none',
           ];
