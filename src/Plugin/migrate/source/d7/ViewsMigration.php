@@ -5,7 +5,7 @@ namespace Drupal\views_migration\Plugin\migrate\source\d7;
 use Drupal\migrate\Row;
 use Drupal\migrate_drupal\Plugin\migrate\source\d7\FieldableEntity;
 use Drupal\Core\Database\Database;
-use Drupal\Core\Database\Query\Condition;
+use Drupal\views\Views;
 
 /**
  * Drupal 7 views source from database.
@@ -59,6 +59,20 @@ class ViewsMigration extends FieldableEntity {
   }
 
   /**
+   * ViewsMigration get Views Plugin List.
+   */
+  public function getPluginList() {
+    $pluginList = Views::pluginList();
+    $pluginList1 = array_keys($pluginList);
+    $pluginList = [];
+    foreach ($pluginList1 as $key => $value) {
+      $data = explode(':', $value);
+      $pluginList[$data[0]][] = $data[1];
+    }
+    return $pluginList;
+  }
+
+  /**
    * ViewsMigration prepareRow.
    *
    * @param \Drupal\migrate\Row $row
@@ -91,31 +105,87 @@ class ViewsMigration extends FieldableEntity {
     }
     $row->setSourceProperty('base_table', $entity_base_table);
     $row->setSourceProperty('base_field', $base_field);
-    $core_views_cache_options = [
-      'none',
-      'tag',
-      'time',
-    ];
+    $pluginList = $this->getPluginList();
     while ($result = $execute->fetchAssoc()) {
       $display_options = $result['display_options'];
       $id = $result['id'];
       $display_options = unserialize($display_options);
+      if (isset($result['display_plugin'])) {
+        if (!in_array($result['display_plugin'], $pluginList['display'])) {
+          $result['display_plugin'] = 'default';
+        }
+      }
       $display[$id]['display_plugin'] = $result['display_plugin'];
       $display[$id]['id'] = $result['id'];
       $display[$id]['display_title'] = $result['display_title'];
       $display[$id]['position'] = $result['position'];
-      if (isset($display_options['cache'])) {
-        if (!in_array($display_options['cache']['type'], $core_views_cache_options)) {
-          $display_options['cache'] = [
-            'type' => 'none',
-          ];
-        }
-      }
+      $display_options = $this->convertDisplayPlugins($display_options, $pluginList);
       $display_options = $this->convertDisplayOptions($display_options, $base_table_array, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
     return parent::prepareRow($row);
+  }
+
+  /**
+   * ViewsMigration convertDisplayPlugins.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param array $pluginList
+   *   Vies plugin list array.
+   *   Views base table.
+   */
+  public function convertDisplayPlugins(array $display_options, array $pluginList) {
+    if (isset($display_options['query']['type'])) {
+      if (!in_array($display_options['query']['type'], $pluginList['query'])) {
+        $display_options['query'] = [
+          'type' => 'views_query',
+          'options' => [],
+        ];
+      }
+    }
+    if (isset($display_options['access']['type'])) {
+      if (!in_array($display_options['access']['type'], $pluginList['access'])) {
+        $display_options['access'] = [
+          'type' => 'perm',
+          'perm' => 'access content',
+        ];
+      }
+    }
+    if (isset($display_options['cache']['type'])) {
+      if (!in_array($display_options['cache']['type'], $pluginList['cache'])) {
+        $display_options['cache'] = [
+          'type' => 'none',
+        ];
+      }
+    }
+    if (isset($display_options['exposed_form']['type'])) {
+      if (!in_array($display_options['exposed_form']['type'], $pluginList['exposed_form'])) {
+        $display_options['exposed_form'] = [
+          'type' => 'basic',
+        ];
+      }
+    }
+
+    if (isset($display_options['pager']['type'])) {
+      if (!in_array($display_options['pager']['type'], $pluginList['pager'])) {
+        $display_options['pager'] = [
+          'type' => 'none',
+        ];
+      }
+    }
+    if (isset($display_options['row_plugin'])) {
+      if (!in_array($display_options['row_plugin'], $pluginList['row'])) {
+        $display_options['row_plugin'] = 'fields';
+      }
+    }
+    if (isset($display_options['style_plugin'])) {
+      if (!in_array($display_options['style_plugin'], $pluginList['style'])) {
+        $display_options['style_plugin'] = 'default';
+      }
+    }
+    return $display_options;
   }
 
   /**
