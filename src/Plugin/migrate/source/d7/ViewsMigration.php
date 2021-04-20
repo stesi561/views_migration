@@ -73,6 +73,22 @@ class ViewsMigration extends FieldableEntity {
   }
 
   /**
+   * ViewsMigration get Views formatter List.
+   */
+  public function getFormatterList() {
+    $formatterManager = \Drupal::service('plugin.manager.field.formatter');
+    $formats = $formatterManager->getOptions();
+    $return_formats = [];
+    $all_formats = [];
+    foreach ($formats as $key => $value) {
+      $return_formats['field_type'][$key] = array_keys($value);
+      $all_formats = array_merge($all_formats, array_keys($value));
+    }
+    $return_formats['all_formats'] = $all_formats;
+    return $return_formats;
+  }
+
+  /**
    * ViewsMigration prepareRow.
    *
    * @param \Drupal\migrate\Row $row
@@ -120,11 +136,57 @@ class ViewsMigration extends FieldableEntity {
       $display[$id]['display_title'] = $result['display_title'];
       $display[$id]['position'] = $result['position'];
       $display_options = $this->convertDisplayPlugins($display_options, $pluginList);
+      $display_options = $this->convertFieldFormatters($display_options, $base_table_array, $entity_type, $entity_base_table);
       $display_options = $this->convertDisplayOptions($display_options, $base_table_array, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
     return parent::prepareRow($row);
+  }
+
+  /**
+   * ViewsMigration convertDisplayPlugins.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param array $base_table_array
+   *   Entities Base table array.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function convertFieldFormatters(array $display_options, array $base_table_array, string $entity_type, string $bt) {
+    $formatterList = $this->getFormatterList();
+    if (is_array($display_options['fields'])) {
+      foreach ($display_options['fields'] as $key => $field) {
+        if (!in_array($field['type'], $formatterList['all_formats'])) {
+          if (isset($base_table_array[$field['table']])) {
+            $entity_detail = $base_table_array[$field['table']];
+            $temp_entity_base_table = $entity_detail['data_table'];
+            $temp_entity_type = $entity_detail['entity_id'];
+            $temp_base_field = $entity_detail['entity_keys']['id'];
+            $config = 'field.storage.' . $entity_type . '.' . $field['field'];
+          }
+          else {
+            $config = 'field.storage.' . $entity_type . '.' . $field['field'];
+          }
+          $field_config = \Drupal::config($config);
+          if (!is_null($field_config)) {
+            $type = $field_config->get('type');
+            $settings = $field_config->get('settings');
+            if (isset($formatterList['field_type'][$type])) {
+              $display_options['fields'][$key]['type'] = $formatterList['field_type'][$type][0];
+              $display_options['fields'][$key]['settings'] = $settings;
+            }
+          }
+          else {
+            unset($display_options['fields']['key']['type']);
+          }
+        }
+      }
+    }
+    return $display_options;
   }
 
   /**
