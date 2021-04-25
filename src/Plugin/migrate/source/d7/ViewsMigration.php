@@ -263,17 +263,18 @@ class ViewsMigration extends FieldableEntity {
    *   Views base table.
    */
   public function convertDisplayOptions(array $display_options, array $base_table_array, string $entity_type, string $bt) {
+    $entity_table_array = $this->entityTableArray();
     if (isset($display_options['relationships'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'relationships', $base_table_array, $entity_type, $bt);
+      $display_options = $this->alterRelationshipsDisplayOptions($display_options, $base_table_array, $entity_type, $bt);
     }
     if (isset($display_options['sorts'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'sorts', $base_table_array, $entity_type, $bt);
+      $display_options = $this->alterDisplayOptions($display_options, 'sorts', $base_table_array, $entity_table_array, $entity_type, $bt);
     }
     if (isset($display_options['filters'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'filters', $base_table_array, $entity_type, $bt);
+      $display_options = $this->alterDisplayOptions($display_options, 'filters', $base_table_array, $entity_table_array, $entity_type, $bt);
     }
     if (isset($display_options['fields'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_type, $bt);
+      $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_table_array, $entity_type, $bt);
     }
     return $display_options;
   }
@@ -298,6 +299,29 @@ class ViewsMigration extends FieldableEntity {
   }
 
   /**
+   * ViewsMigration baseTableArray.
+   *
+   * This function give the entities base table array.
+   */
+  public function entityTableArray() {
+    $entity_table_array = [];
+    $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
+    foreach ($entity_list_def as $id => $entity_def) {
+      $base_table = $entity_def->get('base_table');
+      $data_table = $entity_def->get('data_table');
+      $entity_keys = $entity_def->get('entity_keys');
+      if (isset($data_table)) {
+        $entity_table_array[$entity_keys['id']] = [
+          'entity_id' => $id,
+          'data_table' => $data_table,
+          'entity_keys' => $entity_keys,
+        ];
+      }
+    }
+    return $entity_table_array;
+  }
+
+  /**
    * ViewsMigration convertDisplayOptions.
    *
    * @param array $display_options
@@ -306,26 +330,34 @@ class ViewsMigration extends FieldableEntity {
    *   View section option.
    * @param array $base_table_array
    *   Entities Base table array.
+   * @param array $entity_table_array
+   *   Entities table array based on entity_ids.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function alterDisplayOptions(array $display_options, string $option, array $base_table_array, string $entity_type, string $bt) {
+  public function alterDisplayOptions(array $display_options, string $option, array $base_table_array, array $entity_table_array, string $entity_type, string $bt) {
+    $views_relationships = $display_options['relationships'];
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
+    $types = [
+      'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
+      'boolean', 'unicode-yes-no', 'custom',
+    ];
+    $boolean_fields = [
+      'status',
+      'sticky',
+    ];
     foreach ($fields as $key => $data) {
-      if (isset($data['type'])) {
-        $types = [
-          'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
-          'boolean', 'unicode-yes-no', 'custom',
-        ];
-        if (in_array($data['type'], $types)) {
-          $fields[$key]['type'] = 'boolean';
-          $fields[$key]['settings']['format'] = $data['type'];
-          $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
-          $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
+      if ((isset($data['type']) && in_array($data['field'], $boolean_fields)) || in_array($data['type'], $types)) {
+        if (!in_array($data['type'], $types)) {
+          $data['type'] = 'yes-no';
         }
+        $fields[$key]['type'] = 'boolean';
+        $fields[$key]['settings']['format'] = $data['type'];
+        $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
+        $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
       }
       if (isset($data['field'])) {
         $types = [
@@ -345,11 +377,66 @@ class ViewsMigration extends FieldableEntity {
           $entity_detail = $base_table_array[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
+        elseif (isset($entity_table_array[$data['table']])) {
+          $entity_detail = $entity_table_array[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
         else {
           $result = mb_substr($fields[$key]['table'], 0, 10);
           if ($result == 'field_data') {
             $name = substr($fields[$key]['table'], 10);
+          }
+          else {
+            $name = $fields[$key]['field'];
+          }
+          if (isset($fields[$key]['relationship'])) {
+            $relationship_name = $fields[$key]['relationship'];
+            $relationship = $views_relationships[$relationship_name];
+            if ($relationship['relationship'] == 'none') {
+              $relation_entity_type = $entity_type;
+              if (isset($entity_table_array[$relationship['field']])) {
+                $entity_detail = $entity_table_array[$relationship['field']];
+                $relation_entity_type = $entity_detail['entity_id'];
+              }
+              else {
+                $config = 'field.storage.' . $entity_type . '.' . $relationship['field'];
+                $field_config = \Drupal::config($config);
+                if (!is_null($field_config)) {
+                  $type = $field_config->get('type');
+                  $settings = $field_config->get('settings');
+                  if (isset($settings['target_type'])) {
+                    $relation_entity_type = $settings['target_type'];
+                    $fields[$key]['field'] = str_replace($relation_entity_type . '__', '', $fields[$key]['field']);
+                  }
+                }
+              }
+              $field_name = str_replace('field_data_', '', $relationship['table']);
+              $config = 'field.storage.' . $relation_entity_type . '.' . $fields[$key]['field'];
+              $field_config = \Drupal::config($config);
+              if (!is_null($field_config)) {
+                $type = $field_config->get('type');
+                $settings = $field_config->get('settings');
+                if (isset($settings['target_type'])) {
+                  $table = $settings['target_type'] . '_' . $name;
+                }
+                else {
+                  $table = $relation_entity_type . '_' . $name;
+                }
+              }
+              else {
+                unset($display_options['fields']['key']['type']);
+              }
+            }
+            else {
+              $table = $entity_type . '_' . $name;
+            }
+          }
+          else {
             $table = $entity_type . '_' . $name;
+          }
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
             $fields[$key]['table'] = $table;
           }
           else {
@@ -359,6 +446,88 @@ class ViewsMigration extends FieldableEntity {
       }
     }
     $display_options[$option] = $fields;
+    return $display_options;
+  }
+
+  /**
+   * ViewsMigration convertDisplayOptions.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param array $base_table_array
+   *   Entities Base table array.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function alterRelationshipsDisplayOptions(array $display_options, array $base_table_array, string $entity_type, string $bt) {
+    $views_relationships = $display_options['relationships'];
+    $db_schema = Database::getConnection()->schema();
+    $relationships = $display_options['relationships'];
+    $types = [
+      'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
+      'boolean', 'unicode-yes-no', 'custom',
+    ];
+    $boolean_relationships = [
+      'status',
+      'sticky',
+    ];
+    foreach ($relationships as $key => $data) {
+      if ((isset($data['type']) && in_array($data['field'], $boolean_relationships)) || in_array($data['type'], $types)) {
+        if (!in_array($data['type'], $types)) {
+          $data['type'] = 'yes-no';
+        }
+        $relationships[$key]['type'] = 'boolean';
+        $relationships[$key]['settings']['format'] = $data['type'];
+        $relationships[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
+        $relationships[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
+      }
+      if (isset($data['table'])) {
+        $check_reverse = mb_substr($relationships[$key]['table'], 0, 8);
+        if (isset($base_table_array[$data['table']])) {
+          $entity_detail = $base_table_array[$data['table']];
+          $relationships[$key]['table'] = $entity_detail['data_table'];
+          $relationships[$key]['entity_type'] = $entity_detail['entity_id'];
+        }
+        else {
+          $name = substr($relationships[$key]['table'], 11);
+          if (isset($relationships[$key]['relationship'])) {
+            $relationship_name = $relationships[$key]['relationship'];
+            $relationship = $views_relationships[$relationship_name];
+            if ($relationship['relationship'] == 'none') {
+              $table = $entity_type . '__' . $name;
+            }
+            else {
+              $table = $entity_type . '__' . $name;
+            }
+          }
+          else {
+            $table = $entity_type . '__' . $name;
+          }
+          $result = mb_substr($relationships[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($relationships[$key]['table'], 11);
+            $relationships[$key]['table'] = $table;
+            $relationships[$key]['field'] = $name;
+          }
+          else {
+            /* $relationships[$key]['field'] = $bt; */
+          }
+        }
+        if (mb_substr($key, 0, 8) == 'reverse_') {
+          $field_name = str_replace('reverse_', '', $relationships[$key]['field']);
+          $field_name = str_replace('_' . $entity_type, '', $field_name);
+          $relationships[$key]['field'] = 'reverse__' . $entity_type . '__' . $field_name;
+          $relationships[$key]['admin_label'] = $relationships[$key]['label'];
+          unset($relationships[$key]['label']);
+          unset($relationships[$key]['ui_name']);
+          $relationships[$key]['plugin_id'] = 'entity_reverse';
+        }
+
+      }
+    }
+    $display_options['relationships'] = $relationships;
     return $display_options;
   }
 
