@@ -3,7 +3,9 @@
 namespace Drupal\views_migration\Plugin\migrate\source\d7;
 
 use Drupal\migrate\Row;
-use Drupal\migrate_drupal\Plugin\migrate\source\d7\FieldableEntity;
+use Drupal\migrate\Plugin\migrate\source\SqlBase;
+use Drupal\migrate\Plugin\MigrationInterface;
+use Drupal\Core\State\StateInterface;
 use Drupal\Core\Database\Database;
 use Drupal\views\Views;
 
@@ -15,7 +17,53 @@ use Drupal\views\Views;
  *   source_module = "views"
  * )
  */
-class ViewsMigration extends FieldableEntity {
+class ViewsMigration extends SqlBase {
+  /**
+   * Views migration contains base Table array.
+   *
+   * @var baseTableArray
+   */
+  protected $baseTableArray;
+
+  /**
+   * This var entityTableArray based on entity_ids.
+   *
+   * @var baseTableArray
+   */
+  protected $entityTableArray;
+
+  /**
+   * Views PluginList.
+   *
+   * @var pluginList
+   */
+  protected $pluginList;
+
+  /**
+   * Views formatter list.
+   *
+   * @var formatterList
+   */
+  protected $formatterList;
+
+  /**
+   * User Roles.
+   *
+   * @var userRoles
+   */
+  protected $userRoles;
+
+  /**
+   * {@inheritdoc}
+   */
+  public function __construct(array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration, StateInterface $state) {
+    parent::__construct($configuration, $plugin_id, $plugin_definition, $migration, $state);
+    $this->baseTableArray = $this->baseTableArray();
+    $this->entityTableArray = $this->entityTableArray();
+    $this->pluginList = $this->getPluginList();
+    $this->formatterList = $this->getFormatterList();
+    $this->userRoles = $this->getUserRoles();
+  }
 
   /**
    * {@inheritdoc}
@@ -64,15 +112,15 @@ class ViewsMigration extends FieldableEntity {
   public function getUserRoles() {
     $query = $this->select('role', 'r')->fields('r', ['rid', 'name']);
     $results = $query->execute()->fetchAllAssoc('rid');
-    $user_roles = [];
+    $userRoles = [];
     $map = [
       1 => 'anonymous',
       2 => 'authenticated',
     ];
     foreach ($results as $rid => $role) {
-      $user_roles[$rid] = isset($map[$rid]) ? $map[$rid] : $role['name'];
+      $userRoles[$rid] = isset($map[$rid]) ? $map[$rid] : $role['name'];
     }
-    return $user_roles;
+    return $userRoles;
   }
 
   /**
@@ -142,12 +190,11 @@ class ViewsMigration extends FieldableEntity {
     $query->condition('vid', $vid);
     $execute = $query->execute();
     $display = [];
-    $base_table_array = $this->baseTableArray();
     $entity_base_table = '';
     $entity_type = '';
     $base_field = NULL;
-    if (isset($base_table_array[$base_table])) {
-      $entity_detail = $base_table_array[$base_table];
+    if (isset($this->baseTableArray[$base_table])) {
+      $entity_detail = $this->baseTableArray[$base_table];
       $entity_base_table = $entity_detail['data_table'];
       $entity_type = $entity_detail['entity_id'];
       $base_field = $entity_detail['entity_keys']['id'];
@@ -159,13 +206,12 @@ class ViewsMigration extends FieldableEntity {
     }
     $row->setSourceProperty('base_table', $entity_base_table);
     $row->setSourceProperty('base_field', $base_field);
-    $pluginList = $this->getPluginList();
     while ($result = $execute->fetchAssoc()) {
       $display_options = $result['display_options'];
       $id = $result['id'];
       $display_options = unserialize($display_options);
       if (isset($result['display_plugin'])) {
-        if (!in_array($result['display_plugin'], $pluginList['display'])) {
+        if (!in_array($result['display_plugin'], $this->pluginList['display'])) {
           $result['display_plugin'] = 'default';
         }
       }
@@ -173,9 +219,9 @@ class ViewsMigration extends FieldableEntity {
       $display[$id]['id'] = $result['id'];
       $display[$id]['display_title'] = $result['display_title'];
       $display[$id]['position'] = $result['position'];
-      $display_options = $this->convertDisplayPlugins($display_options, $pluginList);
-      $display_options = $this->convertFieldFormatters($display_options, $base_table_array, $entity_type, $entity_base_table);
-      $display_options = $this->convertDisplayOptions($display_options, $base_table_array, $entity_type, $entity_base_table);
+      $display_options = $this->convertDisplayPlugins($display_options);
+      $display_options = $this->convertFieldFormatters($display_options, $entity_type, $entity_base_table);
+      $display_options = $this->convertDisplayOptions($display_options, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
@@ -187,20 +233,17 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $display_options
    *   Views dispaly options.
-   * @param array $base_table_array
-   *   Entities Base table array.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function convertFieldFormatters(array $display_options, array $base_table_array, string $entity_type, string $bt) {
-    $formatterList = $this->getFormatterList();
+  public function convertFieldFormatters(array $display_options, string $entity_type, string $bt) {
     if (is_array($display_options['fields'])) {
       foreach ($display_options['fields'] as $key => $field) {
-        if (!in_array($field['type'], $formatterList['all_formats'])) {
-          if (isset($base_table_array[$field['table']])) {
-            $entity_detail = $base_table_array[$field['table']];
+        if (!in_array($field['type'], $this->formatterList['all_formats'])) {
+          if (isset($this->baseTableArray[$field['table']])) {
+            $entity_detail = $this->baseTableArray[$field['table']];
             $temp_entity_base_table = $entity_detail['data_table'];
             $temp_entity_type = $entity_detail['entity_id'];
             $temp_base_field = $entity_detail['entity_keys']['id'];
@@ -213,8 +256,8 @@ class ViewsMigration extends FieldableEntity {
           if (!is_null($field_config)) {
             $type = $field_config->get('type');
             $settings = $field_config->get('settings');
-            if (isset($formatterList['field_type'][$type])) {
-              $display_options['fields'][$key]['type'] = $formatterList['field_type'][$type][0];
+            if (isset($this->formatterList['field_type'][$type])) {
+              $display_options['fields'][$key]['type'] = $this->formatterList['field_type'][$type][0];
               $display_options['fields'][$key]['settings'] = $settings;
             }
           }
@@ -232,13 +275,10 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $display_options
    *   Views dispaly options.
-   * @param array $pluginList
-   *   Vies plugin list array.
-   *   Views base table.
    */
-  public function convertDisplayPlugins(array $display_options, array $pluginList) {
+  public function convertDisplayPlugins(array $display_options) {
     if (isset($display_options['query']['type'])) {
-      if (!in_array($display_options['query']['type'], $pluginList['query'])) {
+      if (!in_array($display_options['query']['type'], $this->pluginList['query'])) {
         $display_options['query'] = [
           'type' => 'views_query',
           'options' => [],
@@ -246,17 +286,16 @@ class ViewsMigration extends FieldableEntity {
       }
     }
     if (isset($display_options['access']['type'])) {
-      if (!in_array($display_options['access']['type'], $pluginList['access'])) {
+      if (!in_array($display_options['access']['type'], $this->pluginList['access'])) {
         $display_options['access'] = [
           'type' => 'none',
         ];
       }
       switch ($display_options['access']['type']) {
         case 'role':
-          $roles = $this->getUserRoles();
           $role_approved = [];
           foreach ($display_options['access']['role'] as $key => $value) {
-            $role_approved[$roles[$key]] = $roles[$key];
+            $role_approved[$this->userRoles[$key]] = $this->userRoles[$key];
           }
           unset($display_options['access']['role']);
           $display_options['access']['options']['role'] = $role_approved;
@@ -288,14 +327,14 @@ class ViewsMigration extends FieldableEntity {
       }
     }
     if (isset($display_options['cache']['type'])) {
-      if (!in_array($display_options['cache']['type'], $pluginList['cache'])) {
+      if (!in_array($display_options['cache']['type'], $this->pluginList['cache'])) {
         $display_options['cache'] = [
           'type' => 'none',
         ];
       }
     }
     if (isset($display_options['exposed_form']['type'])) {
-      if (!in_array($display_options['exposed_form']['type'], $pluginList['exposed_form'])) {
+      if (!in_array($display_options['exposed_form']['type'], $this->pluginList['exposed_form'])) {
         $display_options['exposed_form'] = [
           'type' => 'basic',
         ];
@@ -303,19 +342,19 @@ class ViewsMigration extends FieldableEntity {
     }
 
     if (isset($display_options['pager']['type'])) {
-      if (!in_array($display_options['pager']['type'], $pluginList['pager'])) {
+      if (!in_array($display_options['pager']['type'], $this->pluginList['pager'])) {
         $display_options['pager'] = [
           'type' => 'none',
         ];
       }
     }
     if (isset($display_options['row_plugin'])) {
-      if (!in_array($display_options['row_plugin'], $pluginList['row'])) {
+      if (!in_array($display_options['row_plugin'], $this->pluginList['row'])) {
         $display_options['row_plugin'] = 'fields';
       }
     }
     if (isset($display_options['style_plugin'])) {
-      if (!in_array($display_options['style_plugin'], $pluginList['style'])) {
+      if (!in_array($display_options['style_plugin'], $this->pluginList['style'])) {
         $display_options['style_plugin'] = 'default';
       }
     }
@@ -327,27 +366,24 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $display_options
    *   Views dispaly options.
-   * @param array $base_table_array
-   *   Entities Base table array.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function convertDisplayOptions(array $display_options, array $base_table_array, string $entity_type, string $bt) {
-    $entity_table_array = $this->entityTableArray();
+  public function convertDisplayOptions(array $display_options, string $entity_type, string $bt) {
     if (isset($display_options['relationships'])) {
-      $display_options = $this->alterRelationshipsDisplayOptions($display_options, $base_table_array, $entity_type, $bt);
+      $display_options = $this->alterRelationshipsDisplayOptions($display_options, $entity_type, $bt);
     }
     if (isset($display_options['sorts'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'sorts', $base_table_array, $entity_table_array, $entity_type, $bt);
+      $display_options = $this->alterDisplayOptions($display_options, 'sorts', $entity_type, $bt);
     }
     if (isset($display_options['filters'])) {
-      $display_options = $this->alterFiltersDisplayOptions($display_options, 'filters', $base_table_array, $entity_table_array, $entity_type, $bt);
-      $display_options = $this->alterFilters($display_options, 'filters', $base_table_array, $entity_table_array, $entity_type, $bt);
+      $display_options = $this->alterFiltersDisplayOptions($display_options, 'filters', $entity_type, $bt);
+      $display_options = $this->alterFilters($display_options, 'filters', $entity_type, $bt);
     }
     if (isset($display_options['fields'])) {
-      $display_options = $this->alterDisplayOptions($display_options, 'fields', $base_table_array, $entity_table_array, $entity_type, $bt);
+      $display_options = $this->alterDisplayOptions($display_options, 'fields', $entity_type, $bt);
     }
     return $display_options;
   }
@@ -358,17 +394,17 @@ class ViewsMigration extends FieldableEntity {
    * This function give the entities base table array.
    */
   public function baseTableArray() {
-    $base_table_array = [];
+    $baseTableArray = [];
     $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
     foreach ($entity_list_def as $id => $entity_def) {
       $base_table = $entity_def->get('base_table');
       $data_table = $entity_def->get('data_table');
       $entity_keys = $entity_def->get('entity_keys');
-      $base_table_array[$base_table]['entity_id'] = $id;
-      $base_table_array[$base_table]['data_table'] = $data_table;
-      $base_table_array[$base_table]['entity_keys'] = $entity_keys;
+      $baseTableArray[$base_table]['entity_id'] = $id;
+      $baseTableArray[$base_table]['data_table'] = $data_table;
+      $baseTableArray[$base_table]['entity_keys'] = $entity_keys;
     }
-    return $base_table_array;
+    return $baseTableArray;
   }
 
   /**
@@ -377,21 +413,21 @@ class ViewsMigration extends FieldableEntity {
    * This function give the entities base table array.
    */
   public function entityTableArray() {
-    $entity_table_array = [];
+    $this->entityTableArray = [];
     $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
     foreach ($entity_list_def as $id => $entity_def) {
       $base_table = $entity_def->get('base_table');
       $data_table = $entity_def->get('data_table');
       $entity_keys = $entity_def->get('entity_keys');
       if (isset($data_table)) {
-        $entity_table_array[$entity_keys['id']] = [
+        $this->entityTableArray[$entity_keys['id']] = [
           'entity_id' => $id,
           'data_table' => $data_table,
           'entity_keys' => $entity_keys,
         ];
       }
     }
-    return $entity_table_array;
+    return $this->entityTableArray;
   }
 
   /**
@@ -401,16 +437,12 @@ class ViewsMigration extends FieldableEntity {
    *   Views dispaly options.
    * @param string $option
    *   View section option.
-   * @param array $base_table_array
-   *   Entities Base table array.
-   * @param array $entity_table_array
-   *   Entities table array based on entity_ids.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function alterDisplayOptions(array $display_options, string $option, array $base_table_array, array $entity_table_array, string $entity_type, string $bt) {
+  public function alterDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
     $views_relationships = $display_options['relationships'];
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
@@ -446,12 +478,12 @@ class ViewsMigration extends FieldableEntity {
         }
       }
       if (isset($data['table'])) {
-        if (isset($base_table_array[$data['table']])) {
-          $entity_detail = $base_table_array[$data['table']];
+        if (isset($this->baseTableArray[$data['table']])) {
+          $entity_detail = $this->baseTableArray[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
-        elseif (isset($entity_table_array[$data['table']])) {
-          $entity_detail = $entity_table_array[$data['table']];
+        elseif (isset($this->entityTableArray[$data['table']])) {
+          $entity_detail = $this->entityTableArray[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
         else {
@@ -467,8 +499,8 @@ class ViewsMigration extends FieldableEntity {
             $relationship = $views_relationships[$relationship_name];
             if ($relationship['relationship'] == 'none') {
               $relation_entity_type = $entity_type;
-              if (isset($entity_table_array[$relationship['field']])) {
-                $entity_detail = $entity_table_array[$relationship['field']];
+              if (isset($this->entityTableArray[$relationship['field']])) {
+                $entity_detail = $this->entityTableArray[$relationship['field']];
                 $relation_entity_type = $entity_detail['entity_id'];
               }
               else {
@@ -541,16 +573,12 @@ class ViewsMigration extends FieldableEntity {
    *   Views dispaly options.
    * @param string $option
    *   View section option.
-   * @param array $base_table_array
-   *   Entities Base table array.
-   * @param array $entity_table_array
-   *   Entities table array based on entity_ids.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function alterFiltersDisplayOptions(array $display_options, string $option, array $base_table_array, array $entity_table_array, string $entity_type, string $bt) {
+  public function alterFiltersDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
     $views_relationships = $display_options['relationships'];
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
@@ -564,12 +592,12 @@ class ViewsMigration extends FieldableEntity {
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['table'])) {
-        if (isset($base_table_array[$data['table']])) {
-          $entity_detail = $base_table_array[$data['table']];
+        if (isset($this->baseTableArray[$data['table']])) {
+          $entity_detail = $this->baseTableArray[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
-        elseif (isset($entity_table_array[$data['table']])) {
-          $entity_detail = $entity_table_array[$data['table']];
+        elseif (isset($this->entityTableArray[$data['table']])) {
+          $entity_detail = $this->entityTableArray[$data['table']];
           $fields[$key]['table'] = $entity_detail['data_table'];
         }
         else {
@@ -583,7 +611,7 @@ class ViewsMigration extends FieldableEntity {
           if (isset($fields[$key]['relationship'])) {
             $relationship_name = $fields[$key]['relationship'];
             if ($relationship_name == 'none') {
-              $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_table_array, $entity_type, $fields, $key, $name);
+              $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
             }
             else {
               $relationship = $views_relationships[$relationship_name];
@@ -591,7 +619,7 @@ class ViewsMigration extends FieldableEntity {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
-              $fields[$key] = $this->relationshipFieldChage($relationship, $entity_table_array, $entity_type, $fields, $key, $name);
+              $fields[$key] = $this->relationshipFieldChage($relationship, $entity_type, $fields, $key, $name);
             }
           }
           else {
@@ -617,14 +645,12 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $display_options
    *   Views dispaly options.
-   * @param array $base_table_array
-   *   Entities Base table array.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function alterRelationshipsDisplayOptions(array $display_options, array $base_table_array, string $entity_type, string $bt) {
+  public function alterRelationshipsDisplayOptions(array $display_options, string $entity_type, string $bt) {
     $views_relationships = $display_options['relationships'];
     $db_schema = Database::getConnection()->schema();
     $relationships = $display_options['relationships'];
@@ -648,8 +674,8 @@ class ViewsMigration extends FieldableEntity {
       }
       if (isset($data['table'])) {
         $check_reverse = mb_substr($relationships[$key]['table'], 0, 8);
-        if (isset($base_table_array[$data['table']])) {
-          $entity_detail = $base_table_array[$data['table']];
+        if (isset($this->baseTableArray[$data['table']])) {
+          $entity_detail = $this->baseTableArray[$data['table']];
           $relationships[$key]['table'] = $entity_detail['data_table'];
           $relationships[$key]['entity_type'] = $entity_detail['entity_id'];
         }
@@ -700,16 +726,12 @@ class ViewsMigration extends FieldableEntity {
    *   Views dispaly options.
    * @param string $option
    *   View section option.
-   * @param array $base_table_array
-   *   Entities Base table array.
-   * @param array $entity_table_array
-   *   Entities table array based on entity_ids.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $bt
    *   Views base table.
    */
-  public function alterFilters(array $display_options, string $option, array $base_table_array, array $entity_table_array, string $entity_type, string $bt) {
+  public function alterFilters(array $display_options, string $option, string $entity_type, string $bt) {
     $views_relationships = $display_options['relationships'];
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
@@ -721,13 +743,12 @@ class ViewsMigration extends FieldableEntity {
       'status',
       'sticky',
     ];
-    $roles = $this->getUserRoles();
     foreach ($fields as $key => $data) {
       if (isset($data['expose'])) {
         $role_approved = [];
         if (isset($data['expose']['remember_roles'])) {
           foreach ($data['expose']['remember_roles'] as $rid => $role_data) {
-            $role_approved[$roles[$rid]] = $roles[$rid];
+            $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
           }
         }
         $data['expose']['remember_roles'] = $role_approved;
@@ -736,7 +757,7 @@ class ViewsMigration extends FieldableEntity {
         case 'users_roles':
           $role_approved = [];
           foreach ($data['value'] as $rid => $role_data) {
-            $role_approved[$roles[$rid]] = $roles[$rid];
+            $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
           }
           $data['value'] = $role_approved;
           $data['plugin_id'] = 'user_roles';
@@ -799,8 +820,6 @@ class ViewsMigration extends FieldableEntity {
    *
    * @param array $relationship
    *   Views dispaly options.
-   * @param array $entity_table_array
-   *   Entities table array based on entity_ids.
    * @param string $entity_type
    *   Views base entity type.
    * @param string $fields
@@ -810,15 +829,15 @@ class ViewsMigration extends FieldableEntity {
    * @param string $name
    *   Views field name.
    */
-  public function relationshipFieldChage(array $relationship, array $entity_table_array, $entity_type, $fields, $key, $name) {
+  public function relationshipFieldChage(array $relationship, $entity_type, $fields, $key, $name) {
     $dont_changes = ['users_roles', 'file_usage', 'views'];
     if (in_array($fields[$key]['table'], $dont_changes)) {
       return $fields[$key];
     }
 
     $relation_entity_type = $entity_type;
-    if (isset($entity_table_array[$relationship['field']])) {
-      $entity_detail = $entity_table_array[$relationship['field']];
+    if (isset($this->entityTableArray[$relationship['field']])) {
+      $entity_detail = $this->entityTableArray[$relationship['field']];
       $relation_entity_type = $entity_detail['entity_id'];
     }
     else {
@@ -869,4 +888,5 @@ class ViewsMigration extends FieldableEntity {
     $fields[$key]['table'] = $table;
     return $fields[$key];
   }
+
 }
