@@ -54,6 +54,13 @@ class ViewsMigration extends SqlBase {
   protected $userRoles;
 
   /**
+   * Views Data.
+   *
+   * @var viewsData
+   */
+  protected $viewsData;
+
+  /**
    * {@inheritdoc}
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration, StateInterface $state) {
@@ -63,6 +70,7 @@ class ViewsMigration extends SqlBase {
     $this->pluginList = $this->getPluginList();
     $this->formatterList = $this->getFormatterList();
     $this->userRoles = $this->getUserRoles();
+    $this->viewsData = $this->d8ViewsData();
   }
 
   /**
@@ -124,17 +132,24 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
+   * ViewsMigration get User Roles.
+   */
+  public function d8ViewsData() {
+    module_load_include('inc', 'views', 'views.views');
+    $viewsData = views_views_data();
+    return $viewsData;
+  }
+
+  /**
    * ViewsMigration get Views Plugin List.
    */
   public function getPluginList() {
-    $handlers = [
+    $plugins = [
       'argument' => 'handler',
       'field' => 'handler',
       'filter' => 'handler',
       'relationship' => 'handler',
       'sort' => 'handler',
-    ];
-    $plugins = [
       'access' => 'plugin',
       'area' => 'handler',
       'argument_default' => 'plugin',
@@ -381,6 +396,10 @@ class ViewsMigration extends SqlBase {
     if (isset($display_options['filters'])) {
       $display_options = $this->alterFiltersDisplayOptions($display_options, 'filters', $entity_type, $bt);
       $display_options = $this->alterFilters($display_options, 'filters', $entity_type, $bt);
+    }
+    if (isset($display_options['arguments'])) {
+      $display_options = $this->alterArgumentsDisplayOptions($display_options, 'arguments', $entity_type, $bt);
+      $display_options = $this->alterArguments($display_options, 'arguments', $entity_type, $bt);
     }
     if (isset($display_options['fields'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'fields', $entity_type, $bt);
@@ -720,6 +739,80 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
+   * ViewsMigration alterFiltersDisplayOptions.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param string $option
+   *   View section option.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function altersDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
+    $views_relationships = $display_options['relationships'];
+    $db_schema = Database::getConnection()->schema();
+    $fields = $display_options[$option];
+    $types = [
+      'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
+      'boolean', 'unicode-yes-no', 'custom',
+    ];
+    $boolean_fields = [
+      'status',
+      'sticky',
+    ];
+    foreach ($fields as $key => $data) {
+      if (isset($data['table'])) {
+        if (isset($this->baseTableArray[$data['table']])) {
+          $entity_detail = $this->baseTableArray[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
+        elseif (isset($this->entityTableArray[$data['table']])) {
+          $entity_detail = $this->entityTableArray[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
+        else {
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
+          }
+          else {
+            $name = $fields[$key]['field'];
+          }
+          if (isset($fields[$key]['relationship'])) {
+            $relationship_name = $fields[$key]['relationship'];
+            if ($relationship_name == 'none') {
+              $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
+            }
+            else {
+              $relationship = $views_relationships[$relationship_name];
+              while ($relationship['relationship'] != 'none') {
+                $relationship_name = $relationship['relationship'];
+                $relationship = $views_relationships[$relationship_name];
+              }
+              $fields[$key] = $this->relationshipFieldChage($relationship, $entity_type, $fields, $key, $name);
+            }
+          }
+          else {
+            $table = $entity_type . '_' . $name;
+          }
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
+            $fields[$key]['table'] = $table;
+          }
+          else {
+            /* $fields[$key]['field'] = $bt; */
+          }
+        }
+      }
+    }
+    $display_options[$option] = $fields;
+    return $display_options;
+  }
+
+  /**
    * ViewsMigration alterFilters.
    *
    * @param array $display_options
@@ -786,28 +879,189 @@ class ViewsMigration extends SqlBase {
           $data['plugin_id'] = 'date';
         }
       }
-
-      if (mb_substr($data['table'], 0, 5) == 'node_' && !isset($data['plugin_id'])) {
-        $data['plugin_id'] = 'bundle';
-        $data['entity_type'] = 'node';
-        $data['entity_field'] = $data['field'];
+      $table = $data['table'];
+      $field = $data['field'];
+      if (isset($this->viewsData[$table][$field]['filter']['id'])) {
+        $data['plugin_id'] = $this->viewsData[$table][$field]['filter']['id'];
       }
-
-      if (mb_substr($data['table'], 0, 5) == 'user_' && !isset($data['plugin_id'])) {
+      else {
         $data['plugin_id'] = 'bundle';
-        $data['entity_type'] = 'user';
-        $data['entity_field'] = $data['field'];
       }
-
-      if (mb_substr($data['table'], 0, 5) == 'taxonomy_term_') {
-        $data['plugin_id'] = 'bundle';
-        $data['entity_type'] = 'taxonomy_term';
+      if (isset($this->viewsData[$table][$field]['filter']['id'])) {
+        $data['entity_type'] = $this->views_data[$table][$field]['field']['entity_type'];
         $data['entity_field'] = $data['field'];
       }
       if (isset($data['vocabulary'])) {
         $data['plugin_id'] = 'taxonomy_index_tid';
         $data['vid'] = $data['vocabulary'];
         unset($data['vocabulary']);
+      }
+      $fields[$key] = $data;
+    }
+    $display_options[$option] = $fields;
+    return $display_options;
+  }
+
+  /**
+   * ViewsMigration alterArgumentsDisplayOptions.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param string $option
+   *   View section option.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function alterArgumentsDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
+    $views_relationships = $display_options['relationships'];
+    $db_schema = Database::getConnection()->schema();
+    $fields = $display_options[$option];
+    $types = [
+      'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
+      'boolean', 'unicode-yes-no', 'custom',
+    ];
+    $boolean_fields = [
+      'status',
+      'sticky',
+    ];
+    foreach ($fields as $key => $data) {
+      if (isset($data['table'])) {
+        if (isset($this->baseTableArray[$data['table']])) {
+          $entity_detail = $this->baseTableArray[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
+        elseif (isset($this->entityTableArray[$data['table']])) {
+          $entity_detail = $this->entityTableArray[$data['table']];
+          $fields[$key]['table'] = $entity_detail['data_table'];
+        }
+        else {
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
+          }
+          else {
+            $name = $fields[$key]['field'];
+          }
+          if (isset($fields[$key]['relationship'])) {
+            $relationship_name = $fields[$key]['relationship'];
+            if ($relationship_name == 'none') {
+              $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
+            }
+            else {
+              $relationship = $views_relationships[$relationship_name];
+              while ($relationship['relationship'] != 'none') {
+                $relationship_name = $relationship['relationship'];
+                $relationship = $views_relationships[$relationship_name];
+              }
+              $fields[$key] = $this->relationshipFieldChage($relationship, $entity_type, $fields, $key, $name);
+            }
+          }
+          else {
+            $table = $entity_type . '_' . $name;
+          }
+          $result = mb_substr($fields[$key]['table'], 0, 10);
+          if ($result == 'field_data') {
+            $name = substr($fields[$key]['table'], 10);
+            $fields[$key]['table'] = $table;
+          }
+          else {
+            /* $fields[$key]['field'] = $bt; */
+          }
+        }
+      }
+    }
+    $display_options[$option] = $fields;
+    return $display_options;
+  }
+
+  /**
+   * ViewsMigration alterArguments.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param string $option
+   *   View section option.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function alterArguments(array $display_options, string $option, string $entity_type, string $bt) {
+    $views_relationships = $display_options['relationships'];
+    $db_schema = Database::getConnection()->schema();
+    $fields = $display_options[$option];
+    $types = [
+      'yes-no', 'default', 'true-false', 'on-off', 'enabled-disabled',
+      'boolean', 'unicode-yes-no', 'custom',
+    ];
+    $boolean_fields = [
+      'status',
+      'sticky',
+    ];
+    foreach ($fields as $key => $data) {
+      if (isset($data['exception'])) {
+        if (isset($data['expose']['title_enable']) && $data['expose']['title_enable'] = 1) {
+          $data['expose']['title_enable'] = ($data['expose']['title_enable'] == 1) ? TRUE : FALSE;
+        }
+      }
+      if (isset($data['title_enable'])) {
+        $data['title_enable'] = ($data['title_enable'] == 1) ? TRUE : FALSE;
+      }
+      if (isset($data['specify_validation'])) {
+        $data['specify_validation'] = ($data['specify_validation'] == 1) ? TRUE : FALSE;
+      }
+      switch ($data['table']) {
+        case 'users_roles':
+          $role_approved = [];
+          foreach ($data['value'] as $rid => $role_data) {
+            $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
+          }
+          $data['value'] = $role_approved;
+          $data['plugin_id'] = 'user_roles';
+          $data['entity_type'] = 'user';
+          $data['entity_field'] = 'roles';
+          $data['table'] = 'user__roles';
+          $data['field'] = 'roles_target_id';
+          break;
+
+        case 'views':
+          if ($data['field'] == 'combine') {
+            $data['plugin_id'] = 'combine';
+          }
+          break;
+
+        default:
+          // code...
+          break;
+      }
+
+      $table = $data['table'];
+      $field_name = $data['field'];
+      $entity_id_check = mb_substr($data['field'], ($name_len - 4), 4);
+      $field_name = $fields[$key]['field'];
+      if ($entity_id_check == '_tid') {
+        $field_name = mb_substr($data['field'], 0, ($name_len - 4));
+        $data['field'] = $field_name . '_target_id';
+      }
+      $value_check = mb_substr($data['field'], ($name_len - 6), 6);
+      if ($value_check == '_value') {
+        $field_name = mb_substr($data['field'], 0, ($name_len - 6));
+      }
+      if (isset($this->viewsData[$table][$field_name]['argument']['id'])) {
+        $data['plugin_id'] = $this->viewsData[$table][$field_name]['argument']['id'];
+      }
+      if (isset($data['validate']['type'])) {
+        if (!in_array($data['validate']['type'], $pluginList['argument_validator'])) {
+          $type = 'entity:' . $data['validate']['type'];
+          if (in_array($data['validate']['type'], $pluginList['argument_validator'])) {
+            $data['validate']['type'] = $type;
+          }
+          else {
+            unset($data['validate']['type']);
+          }
+        }
       }
       $fields[$key] = $data;
     }
