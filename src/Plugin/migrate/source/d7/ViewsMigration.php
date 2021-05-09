@@ -333,6 +333,9 @@ class ViewsMigration extends SqlBase {
           ];
           $perm = $display_options['access']['perm'];
           $perm = isset($permissions[$perm]) ? $permissions[$perm] : $perm;
+          if(is_null($perm)){
+            $perm = 'administer nodes';
+          }
           $display_options['access']['options']['perm'] = $perm;
           break;
 
