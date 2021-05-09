@@ -634,7 +634,7 @@ class ViewsMigration extends SqlBase {
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none') {
+              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
