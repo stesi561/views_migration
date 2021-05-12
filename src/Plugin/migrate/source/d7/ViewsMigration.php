@@ -632,7 +632,7 @@ class ViewsMigration extends SqlBase {
           }
           if (isset($fields[$key]['relationship'])) {
             $relationship_name = $fields[$key]['relationship'];
-            if ($relationship_name == 'none') {
+            if ($relationship_name == 'none' || $relationship_name == '' || is_null($relationship_name)) {
               $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
             }
             else {
@@ -785,12 +785,12 @@ class ViewsMigration extends SqlBase {
           }
           if (isset($fields[$key]['relationship'])) {
             $relationship_name = $fields[$key]['relationship'];
-            if ($relationship_name == 'none') {
+            if ($relationship_name == 'none' || $relationship_name == '' || is_null($relationship_name)) {
               $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none') {
+              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
@@ -851,11 +851,13 @@ class ViewsMigration extends SqlBase {
       }
       switch ($data['table']) {
         case 'users_roles':
-          $role_approved = [];
-          foreach ($data['value'] as $rid => $role_data) {
-            $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
+          if (isset($data['value'])) {
+            $role_approved = [];
+            foreach ($data['value'] as $rid => $role_data) {
+              $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
+            }
+            $data['value'] = $role_approved;
           }
-          $data['value'] = $role_approved;
           $data['plugin_id'] = 'user_roles';
           $data['entity_type'] = 'user';
           $data['entity_field'] = 'roles';
@@ -949,12 +951,12 @@ class ViewsMigration extends SqlBase {
           }
           if (isset($fields[$key]['relationship'])) {
             $relationship_name = $fields[$key]['relationship'];
-            if ($relationship_name == 'none') {
+            if ($relationship_name == 'none' || $relationship_name == '' || is_null($relationship_name)) {
               $fields[$key] = $this->relationshipFieldChage($fields[$key], $entity_type, $fields, $key, $name);
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none') {
+              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
@@ -1017,11 +1019,13 @@ class ViewsMigration extends SqlBase {
       }
       switch ($data['table']) {
         case 'users_roles':
-          $role_approved = [];
-          foreach ($data['value'] as $rid => $role_data) {
-            $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
+          if (isset($data['value'])) {
+            $role_approved = [];
+            foreach ($data['value'] as $rid => $role_data) {
+              $role_approved[$this->userRoles[$rid]] = $this->userRoles[$rid];
+            }
+            $data['value'] = $role_approved;
           }
-          $data['value'] = $role_approved;
           $data['plugin_id'] = 'user_roles';
           $data['entity_type'] = 'user';
           $data['entity_field'] = 'roles';
