@@ -61,6 +61,13 @@ class ViewsMigration extends SqlBase {
   protected $viewsData;
 
   /**
+   * Views Data.
+   *
+   * @var viewsData
+   */
+  protected $viewsRelationshipData;
+
+  /**
    * {@inheritdoc}
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration, StateInterface $state) {
@@ -204,6 +211,16 @@ class ViewsMigration extends SqlBase {
       ]);
     $query->condition('vid', $vid);
     $execute = $query->execute();
+    $relationships = $query->execute();
+    $this->viewsRelationshipData = [];
+    while ($viewsDisplayData = $relationships->fetchAssoc()) {
+      $display_options = unserialize($viewsDisplayData['display_options']);
+      if(isset($display_options['relationships'])){
+        foreach ($display_options['relationships'] as $relationshipId => $relationshipData) {
+          $this->viewsRelationshipData[$relationshipId] = $relationshipData;
+        } 
+      }
+    }
     $display = [];
     $entity_base_table = '';
     $entity_type = '';
@@ -465,7 +482,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
@@ -601,7 +618,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterFiltersDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
@@ -673,7 +690,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterRelationshipsDisplayOptions(array $display_options, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $relationships = $display_options['relationships'];
     $types = [
@@ -754,7 +771,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function altersDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
@@ -828,7 +845,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterFilters(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
@@ -920,7 +937,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterArgumentsDisplayOptions(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
@@ -994,7 +1011,7 @@ class ViewsMigration extends SqlBase {
    *   Views base table.
    */
   public function alterArguments(array $display_options, string $option, string $entity_type, string $bt) {
-    $views_relationships = $display_options['relationships'];
+    $views_relationships = $this->viewsRelationshipData;
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $types = [
