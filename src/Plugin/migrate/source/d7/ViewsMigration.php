@@ -350,6 +350,9 @@ class ViewsMigration extends SqlBase {
       switch ($display_options['access']['type']) {
         case 'role':
           $role_approved = [];
+          if (!is_array($display_options['access']['role'])) {
+            break;
+          }
           foreach ($display_options['access']['role'] as $key => $value) {
             $role_approved[$this->userRoles[$key]] = $this->userRoles[$key];
           }
