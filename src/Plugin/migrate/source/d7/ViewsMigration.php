@@ -1109,9 +1109,6 @@ class ViewsMigration extends SqlBase {
           if (in_array($data['validate']['type'], $this->pluginList['argument_validator'])) {
             $data['validate']['type'] = $type;
           }
-          else {
-            unset($data['validate']['type']);
-          }
         }
       }
       if (!is_array($data['default_argument_options'])) {
