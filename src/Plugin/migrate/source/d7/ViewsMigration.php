@@ -3,6 +3,8 @@
 namespace Drupal\views_migration\Plugin\migrate\source\d7;
 
 use Drupal\migrate\Row;
+use Drupal\migrate\MigrateSkipRowException;
+use Drupal\migrate\Plugin\MigrateIdMapInterface;
 use Drupal\migrate\Plugin\migrate\source\SqlBase;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\Core\State\StateInterface;
@@ -144,8 +146,7 @@ class ViewsMigration extends SqlBase {
    * ViewsMigration get User Roles.
    */
   public function d8ViewsData() {
-    module_load_include('inc', 'views', 'views.views');
-    $viewsData = views_views_data();
+    $viewsData = \Drupal::service('views.views_data')->getAll();
     return $viewsData;
   }
 
@@ -207,6 +208,26 @@ class ViewsMigration extends SqlBase {
   public function prepareRow(Row $row) {
     $vid = $row->getSourceProperty('vid');
     $base_table = $row->getSourceProperty('base_table');
+    $available_views_tables = array_keys($this->viewsData);
+
+    try {
+      if (!in_array($base_table, $available_views_tables)) {
+        throw new MigrateSkipRowException('The views base table ' . $base_table . ' is not exist in your database.');
+      }
+    }
+    catch (MigrateSkipRowException $e) {
+      $skip = TRUE;
+      $save_to_map = $e->getSaveToMap();
+      if ($message = trim($e->getMessage())) {
+        $this->idMap->saveMessage($row->getSourceIdValues(), $message, MigrationInterface::MESSAGE_INFORMATIONAL);
+      }
+      if ($save_to_map) {
+        $this->idMap->saveIdMapping($row, [], MigrateIdMapInterface::STATUS_IGNORED);
+        $this->currentRow = NULL;
+        $this->currentSourceIds = NULL;
+      }
+      return FALSE;
+    }
     $query = $this->select('views_display', 'vd')
       ->fields('vd', [
         'id', 'display_title', 'display_plugin', 'display_options', 'position',
@@ -256,6 +277,7 @@ class ViewsMigration extends SqlBase {
       $display_options = $this->convertDisplayPlugins($display_options);
       $display_options = $this->convertFieldFormatters($display_options, $entity_type, $entity_base_table);
       $display_options = $this->convertDisplayOptions($display_options, $entity_type, $entity_base_table);
+      $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
@@ -1170,6 +1192,39 @@ class ViewsMigration extends SqlBase {
     }
     $fields[$key]['table'] = $table;
     return $fields[$key];
+  }
+
+  /**
+   * ViewsMigration removeNonExistFields.
+   *
+   * @param array $display_options
+   *   Views dispaly options.
+   * @param string $entity_type
+   *   Views base entity type.
+   * @param string $bt
+   *   Views base table.
+   */
+  public function removeNonExistFields(array $display_options, string $entity_type, string $bt) {
+    $options = [
+      'fields',
+      'filters',
+      'arguments',
+      'relationships',
+      'sorts',
+      'footer',
+      'empty',
+    ];
+    $available_views_tables = array_keys($this->viewsData);
+    foreach ($options as $key => $option) {
+      if (isset($display_options[$option])) {
+        foreach ($display_options[$option] as $field_id => $field) {
+          if (!in_array($field['table'], $available_views_tables)) {
+            unset($display_options[$option][$field_id]);
+          }
+        }
+      }
+    }
+    return $display_options;
   }
 
 }
