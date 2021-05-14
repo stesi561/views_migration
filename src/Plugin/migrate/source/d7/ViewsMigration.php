@@ -133,7 +133,9 @@ class ViewsMigration extends SqlBase {
       2 => 'authenticated',
     ];
     foreach ($results as $rid => $role) {
-      $userRoles[$rid] = isset($map[$rid]) ? $map[$rid] : $role['name'];
+      // Handle role names with spaces in them.
+      $role_name = str_replace(' ', '_', $role['name']);
+      $userRoles[$rid] = isset($map[$rid]) ? $map[$rid] : $role_name;
     }
     return $userRoles;
   }
