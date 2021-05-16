@@ -543,6 +543,10 @@ class ViewsMigration extends SqlBase {
           $fields[$key]['table'] = $table_map[$data['table']];
         }
       }
+      if (isset($data['alter']['text'])) {
+        $data['alter']['text'] = str_replace("[", "{", $data['alter']['text']);
+        $fields[$key]['alter']['text'] = str_replace("]", "}", $data['alter']['text']);
+      }
       if (isset($data['table'])) {
         if (isset($this->baseTableArray[$data['table']])) {
           $entity_detail = $this->baseTableArray[$data['table']];
@@ -1106,7 +1110,7 @@ class ViewsMigration extends SqlBase {
       if (isset($data['validate']['type'])) {
         if (!in_array($data['validate']['type'], $this->pluginList['argument_validator'])) {
           $type = 'entity:' . $data['validate']['type'];
-          if (in_array($data['validate']['type'], $this->pluginList['argument_validator'])) {
+          if (in_array($type, $this->pluginList['argument_validator'])) {
             $data['validate']['type'] = $type;
           }
         }
