@@ -777,6 +777,9 @@ class ViewsMigration extends SqlBase {
       'sticky',
     ];
     foreach ($relationships as $key => $data) {
+      // This change for references fields.
+      if(mb_substr($data['field'], -4) == '_nid');
+        $data['field'] = mb_substr($data['field'], 0, -4).'_target_id';
       if ((isset($data['type']) && in_array($data['field'], $boolean_relationships)) || in_array($data['type'], $types)) {
         if (!in_array($data['type'], $types)) {
           $data['type'] = 'yes-no';
