@@ -208,6 +208,9 @@ class ViewsMigration extends SqlBase {
   public function prepareRow(Row $row) {
     $vid = $row->getSourceProperty('vid');
     $base_table = $row->getSourceProperty('base_table');
+    if($base_table=='commerce_product'){
+      $base_table = 'commerce_product_variation'; 
+    }
     $available_views_tables = array_keys($this->viewsData);
 
     try {
@@ -277,7 +280,7 @@ class ViewsMigration extends SqlBase {
       $display_options = $this->convertDisplayPlugins($display_options);
       $display_options = $this->convertFieldFormatters($display_options, $entity_type, $entity_base_table);
       $display_options = $this->convertDisplayOptions($display_options, $entity_type, $entity_base_table);
-      $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
+      // $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
@@ -464,10 +467,20 @@ class ViewsMigration extends SqlBase {
     $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
     foreach ($entity_list_def as $id => $entity_def) {
       $base_table = $entity_def->get('base_table');
+      if(!isset($base_table))
+        continue;
       $data_table = $entity_def->get('data_table');
       $entity_keys = $entity_def->get('entity_keys');
+      if($base_table=='commerce_product'){
+        $data_table = 'commerce_product_variation_field_data'; 
+        $id = 'commerce_product_variation'; 
+      }
       $baseTableArray[$base_table]['entity_id'] = $id;
-      $baseTableArray[$base_table]['data_table'] = $data_table;
+      if(!is_null($data_table))
+        $baseTableArray[$base_table]['data_table'] = $data_table;
+      else{
+        $baseTableArray[$base_table]['data_table'] = $base_table;
+      }
       $baseTableArray[$base_table]['entity_keys'] = $entity_keys;
     }
     return $baseTableArray;
@@ -483,12 +496,25 @@ class ViewsMigration extends SqlBase {
     $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
     foreach ($entity_list_def as $id => $entity_def) {
       $base_table = $entity_def->get('base_table');
+      if(!isset($base_table))
+        continue;
       $data_table = $entity_def->get('data_table');
       $entity_keys = $entity_def->get('entity_keys');
+      if($base_table=='commerce_product'){
+        $data_table = 'commerce_product_variation_field_data'; 
+        $id = 'commerce_product_variation'; 
+      }
       if (isset($data_table)) {
         $this->entityTableArray[$entity_keys['id']] = [
           'entity_id' => $id,
           'data_table' => $data_table,
+          'entity_keys' => $entity_keys,
+        ];
+      }
+      else {
+        $this->entityTableArray[$entity_keys['id']] = [
+          'entity_id' => $id,
+          'data_table' => $base_table,
           'entity_keys' => $entity_keys,
         ];
       }
@@ -630,6 +656,24 @@ class ViewsMigration extends SqlBase {
             /* $fields[$key]['field'] = $bt; */
           }
         }
+      }
+      switch ($data['field']) {
+        case 'views_bulk_operations':
+          $fields[$key]['plugin_id']='views_bulk_operations_bulk_form';
+          $fields[$key]['table']='views';
+          $fields[$key]['field']='views_bulk_operations_bulk_form';
+          break;
+
+        case 'operations':
+          $fields[$key]['plugin_id']='entity_operations';
+          $fields[$key]['entity_type']=$entity_type;
+          $baseTable = \Drupal::entityTypeManager()->getStorage($entity_type)->getBaseTable();
+          $fields[$key]['table']=$baseTable;
+          break;
+        
+        default:
+          # code...
+          break;
       }
     }
     $display_options[$option] = $fields;
