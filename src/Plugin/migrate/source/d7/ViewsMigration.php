@@ -280,7 +280,7 @@ class ViewsMigration extends SqlBase {
       $display_options = $this->convertDisplayPlugins($display_options);
       $display_options = $this->convertFieldFormatters($display_options, $entity_type, $entity_base_table);
       $display_options = $this->convertDisplayOptions($display_options, $entity_type, $entity_base_table);
-      // $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
+      $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
       $display[$id]['display_options'] = $display_options;
     }
     $row->setSourceProperty('display', $display);
@@ -593,7 +593,7 @@ class ViewsMigration extends SqlBase {
           if (isset($fields[$key]['relationship'])) {
             $relationship_name = $fields[$key]['relationship'];
             $relationship = $views_relationships[$relationship_name];
-            if ($relationship['relationship'] == 'none') {
+            if (!isset($relationship['relationship']) || $relationship['relationship'] == 'none' || $relationship['relationship'] == '' || is_null($relationship['relationship'])) {
               $relation_entity_type = $entity_type;
               if (isset($this->entityTableArray[$relationship['field']])) {
                 $entity_detail = $this->entityTableArray[$relationship['field']];
@@ -611,7 +611,14 @@ class ViewsMigration extends SqlBase {
                 if ($value_check == '_value') {
                   $field_name = mb_substr($fields[$key]['field'], 0, ($name_len - 6));
                 }
-                $config = 'field.storage.' . $relation_entity_type . '.' . $relationship['field'];
+
+                $name_len = strlen($relationship['field']);
+                $entity_id_check = mb_substr($relationship['field'], ($name_len - 4), 4);
+                $reference_field_name = $relationship['field'];
+                if ($entity_id_check == '_tid' || $entity_id_check == '_nid' || $entity_id_check == '_uid') {
+                  $reference_field_name = mb_substr($reference_field_name, 0, ($name_len - 4));
+                }
+                $config = 'field.storage.' . $relation_entity_type . '.' . $reference_field_name;
                 $field_config = \Drupal::config($config);
                 if (!is_null($field_config)) {
                   $type = $field_config->get('type');
@@ -627,14 +634,7 @@ class ViewsMigration extends SqlBase {
               $config = 'field.storage.' . $relation_entity_type . '.' . $fields[$key]['field'];
               $field_config = \Drupal::config($config);
               if (!is_null($field_config)) {
-                $type = $field_config->get('type');
-                $settings = $field_config->get('settings');
-                if (isset($settings['target_type'])) {
-                  $table = $settings['target_type'] . '_' . $name;
-                }
-                else {
-                  $table = $relation_entity_type . '_' . $name;
-                }
+                $table = $relation_entity_type . '_' . $name;
               }
               else {
                 unset($display_options['fields']['key']['type']);
@@ -729,7 +729,7 @@ class ViewsMigration extends SqlBase {
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
+              while (isset($relationship['relationship']) && $relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
@@ -777,8 +777,7 @@ class ViewsMigration extends SqlBase {
       'sticky',
     ];
     foreach ($relationships as $key => $data) {
-      // This change for references fields.
-      if(mb_substr($data['field'], -4) == '_nid');
+      if(mb_substr($data['field'], -4) == '_nid' || mb_substr($data['field'], -4) == '_uid');
         $data['field'] = mb_substr($data['field'], 0, -4).'_target_id';
       if ((isset($data['type']) && in_array($data['field'], $boolean_relationships)) || in_array($data['type'], $types)) {
         if (!in_array($data['type'], $types)) {
@@ -885,7 +884,7 @@ class ViewsMigration extends SqlBase {
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
+              while (isset($relationship['relationship']) && $relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
@@ -1051,7 +1050,7 @@ class ViewsMigration extends SqlBase {
             }
             else {
               $relationship = $views_relationships[$relationship_name];
-              while ($relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
+              while (isset($relationship['relationship']) && $relationship['relationship'] != 'none' && $relationship['relationship'] != '' && !is_null($relationship['relationship'])) {
                 $relationship_name = $relationship['relationship'];
                 $relationship = $views_relationships[$relationship_name];
               }
@@ -1143,7 +1142,7 @@ class ViewsMigration extends SqlBase {
       $field_name = $data['field'];
       $entity_id_check = mb_substr($data['field'], ($name_len - 4), 4);
       $field_name = $fields[$key]['field'];
-      if ($entity_id_check == '_tid') {
+      if ($entity_id_check == '_tid' || $entity_id_check == '_uid' || $entity_id_check == '_nid') {
         $field_name = mb_substr($data['field'], 0, ($name_len - 4));
         $data['field'] = $field_name . '_target_id';
       }
@@ -1200,7 +1199,7 @@ class ViewsMigration extends SqlBase {
       $name_len = strlen($fields[$key]['field']);
       $entity_id_check = mb_substr($fields[$key]['field'], ($name_len - 4), 4);
       $field_name = $fields[$key]['field'];
-      if ($entity_id_check == '_tid') {
+      if ($entity_id_check == '_tid' || $entity_id_check == '_uid' || $entity_id_check == '_nid') {
         $field_name = mb_substr($fields[$key]['field'], 0, ($name_len - 4));
         $fields[$key]['field'] = $field_name . '_target_id';
       }
