@@ -7,4 +7,3 @@ dependencies:
   - drupal:views
   - drupal:migrate
   - drupal:migrate_drupal
-  - migrate_plus:migrate_plus
