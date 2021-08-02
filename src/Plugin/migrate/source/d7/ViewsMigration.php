@@ -177,11 +177,53 @@ class ViewsMigration extends SqlBase {
     ];
     $pluginList = [];
     foreach ($plugins as $pluginName => $value) {
-      $pluginNames = Views::fetchPluginNames($pluginName);
+      $pluginNames = $this->fetchPluginNames($pluginName);
       $pluginList[$pluginName] = array_keys($pluginNames);
     }
     return $pluginList;
   }
+
+  public static function pluginManager($type) {
+    return \Drupal::service('plugin.manager.views.' . $type);
+  }
+
+  /**
+   * Fetches a list of all base tables available.
+   *
+   * @param string $type
+   *   Either 'display', 'style' or 'row'.
+   * @param string $key
+   *   For style plugins, this is an optional type to restrict to. May be
+   *   'normal', 'summary', 'feed' or others based on the needs of the display.
+   * @param array $base
+   *   An array of possible base tables.
+   *
+   * @return
+   *   A keyed array of in the form of 'base_table' => 'Description'.
+   */
+  public function fetchPluginNames($type, $key = NULL, array $base = []) {
+    $definitions = static::pluginManager($type)->getDefinitions();
+    $plugins = [];
+
+    foreach ($definitions as $id => $plugin) {
+      // Skip plugins that don't conform to our key, if they have one.
+      if ($key && isset($plugin['display_types']) && !in_array($key, $plugin['display_types'])) {
+        continue;
+      }
+
+      if (empty($plugin['no_ui']) && (empty($base) || empty($plugin['base']) || array_intersect($base, $plugin['base']))) {
+        $plugins[$id] = isset($plugin['title']) ? $plugin['title'] : $id;
+      }
+    }
+
+    if (!empty($plugins)) {
+      asort($plugins);
+      return $plugins;
+    }
+
+    return $plugins;
+  }
+
 
   /**
    * ViewsMigration get Views formatter List.
