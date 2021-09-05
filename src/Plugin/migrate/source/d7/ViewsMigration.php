@@ -248,6 +248,9 @@ class ViewsMigration extends SqlBase {
    *   The migration source ROW.
    */
   public function prepareRow(Row $row) {
+    $display_plugin_map = [
+      'views_data_export' => 'data_export',
+    ];
     $vid = $row->getSourceProperty('vid');
     $base_table = $row->getSourceProperty('base_table');
     if ($base_table == 'commerce_product') {
@@ -312,7 +315,12 @@ class ViewsMigration extends SqlBase {
       $display_options = unserialize($display_options);
       if (isset($result['display_plugin'])) {
         if (!in_array($result['display_plugin'], $this->pluginList['display'])) {
-          $result['display_plugin'] = 'default';
+          if(isset($display_plugin_map[$result['display_plugin']])){
+            $result['display_plugin'] = $display_plugin_map[$result['display_plugin']];
+          }
+          else {
+            $result['display_plugin'] = 'default'; 
+          }
         }
       }
       $display[$id]['display_plugin'] = $result['display_plugin'];
@@ -590,6 +598,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if ((isset($data['type']) && in_array($data['field'], $boolean_fields)) || in_array($data['type'], $types)) {
@@ -600,19 +609,6 @@ class ViewsMigration extends SqlBase {
         $fields[$key]['settings']['format'] = $data['type'];
         $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
         $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
-      }
-      if (isset($data['field'])) {
-        $types = [
-          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment',
-        ];
-        $table_map = [
-          'views_entity_node' => 'node',
-          'users' => 'users',
-          'comment' => 'comment',
-        ];
-        if (in_array($data['field'], $types)) {
-          $fields[$key]['table'] = $table_map[$data['table']];
-        }
       }
       if (isset($data['alter']['text'])) {
         $data['alter']['text'] = str_replace("[", "{", $data['alter']['text']);
@@ -720,6 +716,24 @@ class ViewsMigration extends SqlBase {
           // code...
           break;
       }
+      if (isset($data['field'])) {
+        $types = [
+          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 'comment', 'comment_count', 'last_comment_timestamp','last_comment_uid', 'last_comment_name'
+        ];
+        $table_map = [
+          'views_entity_node' => 'node',
+          'users' => 'users',
+          'comment' => 'comment',
+          'node_comment_statistics' => 'comment_entity_statistics',
+        ];
+        if (in_array($data['field'], $types)) {
+          $fields[$key]['table'] = $table_map[$data['table']];
+        }
+        if(isset($this->viewsData[$entity_type][$data['field']])) {
+          $fields[$key]['table'] = $entity_type;
+          $fields[$key]['plugin_id'] = $this->viewsData[$entity_type][$data['field']][$option]['id'];
+        }
+      }
     }
     $display_options[$option] = $fields;
     return $display_options;
@@ -748,6 +762,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['table'])) {
@@ -820,6 +835,7 @@ class ViewsMigration extends SqlBase {
     $boolean_relationships = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($relationships as $key => $data) {
       if (mb_substr($data['field'], -4) == '_nid' || mb_substr($data['field'], -4) == '_uid') {
@@ -904,6 +920,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['table'])) {
@@ -978,6 +995,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['expose'])) {
@@ -1036,6 +1054,14 @@ class ViewsMigration extends SqlBase {
         $data['entity_type'] = $this->views_data[$table][$field]['field']['entity_type'];
         $data['entity_field'] = $data['field'];
       }
+      if(isset($this->viewsData[$entity_type][$field])) {
+        $data['table'] = $entity_type;
+        $data['plugin_id'] = $this->viewsData[$entity_type][$field][$option]['id'];
+        if (isset($this->viewsData[$entity_type][$field]['filter']['id'])) {
+          $data['entity_type'] = $this->views_data[$entity_type][$field]['field']['entity_type'];
+          $data['entity_field'] = $data['field'];
+        }
+      }
       if (isset($data['vocabulary'])) {
         $data['plugin_id'] = 'taxonomy_index_tid';
         $data['vid'] = $data['vocabulary'];
@@ -1070,6 +1096,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['table'])) {
@@ -1144,6 +1171,7 @@ class ViewsMigration extends SqlBase {
     $boolean_fields = [
       'status',
       'sticky',
+      'promote',
     ];
     foreach ($fields as $key => $data) {
       if (isset($data['exception'])) {
