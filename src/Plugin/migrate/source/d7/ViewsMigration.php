@@ -9,7 +9,6 @@ use Drupal\migrate\Plugin\migrate\source\SqlBase;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Database\Database;
-use Drupal\views\Views;
 
 /**
  * Drupal 7 views source from database.
@@ -63,6 +62,13 @@ class ViewsMigration extends SqlBase {
   protected $viewsData;
 
   /**
+   * Type Map.
+   *
+   * @var viewsData
+   */
+  protected $typeMap;
+
+  /**
    * Views Data.
    *
    * @var viewsData
@@ -80,6 +86,7 @@ class ViewsMigration extends SqlBase {
     $this->formatterList = $this->getFormatterList();
     $this->userRoles = $this->getUserRoles();
     $this->viewsData = $this->d8ViewsData();
+    $this->typeMap = $this->getTypeMap();
   }
 
   /**
@@ -101,6 +108,18 @@ class ViewsMigration extends SqlBase {
       "display_options" => $this->t("display_options"),
     ];
     return $fields;
+  }
+
+  /**
+   * {@inheritdoc}
+   */
+  private function getTypeMap() {
+    $typeMap = [
+      'datetime' => 'datetime',
+      'date' => 'datetime',
+      'datestamp' => 'timestamp',
+    ];
+    return $typeMap;
   }
 
   /**
@@ -183,6 +202,9 @@ class ViewsMigration extends SqlBase {
     return $pluginList;
   }
 
+  /**
+   *
+   */
   public static function pluginManager($type) {
     return \Drupal::service('plugin.manager.views.' . $type);
   }
@@ -223,7 +245,6 @@ class ViewsMigration extends SqlBase {
 
     return $plugins;
   }
-
 
   /**
    * ViewsMigration get Views formatter List.
@@ -315,11 +336,11 @@ class ViewsMigration extends SqlBase {
       $display_options = unserialize($display_options);
       if (isset($result['display_plugin'])) {
         if (!in_array($result['display_plugin'], $this->pluginList['display'])) {
-          if(isset($display_plugin_map[$result['display_plugin']])){
+          if (isset($display_plugin_map[$result['display_plugin']])) {
             $result['display_plugin'] = $display_plugin_map[$result['display_plugin']];
           }
           else {
-            $result['display_plugin'] = 'default'; 
+            $result['display_plugin'] = 'default';
           }
         }
       }
@@ -601,6 +622,9 @@ class ViewsMigration extends SqlBase {
       'promote',
     ];
     foreach ($fields as $key => $data) {
+      if (in_array($data['type'], $this->typeMap)) {
+        $data['type'] = $this->typeMap[$data['type']];
+      }
       if ((isset($data['type']) && in_array($data['field'], $boolean_fields)) || in_array($data['type'], $types)) {
         if (!in_array($data['type'], $types)) {
           $data['type'] = 'yes-no';
@@ -718,7 +742,7 @@ class ViewsMigration extends SqlBase {
       }
       if (isset($data['field'])) {
         $types = [
-          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 'comment', 'comment_count', 'last_comment_timestamp','last_comment_uid', 'last_comment_name'
+          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 'comment', 'comment_count', 'last_comment_timestamp', 'last_comment_uid', 'last_comment_name',
         ];
         $table_map = [
           'views_entity_node' => 'node',
@@ -729,7 +753,7 @@ class ViewsMigration extends SqlBase {
         if (in_array($data['field'], $types)) {
           $fields[$key]['table'] = $table_map[$data['table']];
         }
-        if(isset($this->viewsData[$entity_type][$data['field']])) {
+        if (isset($this->viewsData[$entity_type][$data['field']])) {
           $fields[$key]['table'] = $entity_type;
           $fields[$key]['plugin_id'] = $this->viewsData[$entity_type][$data['field']][$option]['id'];
         }
@@ -808,6 +832,22 @@ class ViewsMigration extends SqlBase {
             /* $fields[$key]['field'] = $bt; */
           }
         }
+      }
+
+      if ($data['field'] == 'date_filter') {
+        $fields[$key]['plugin_id'] = 'datetime';
+        $date_fields = [];
+        foreach ($data['date_fields'] as $key1 => $value1) {
+          $key1 = end(explode('.', $key1));
+          $value1 = end(explode('.', $value1));
+          $date_fields[$key1] = $value1;
+        }
+        $field = array_keys($date_fields)[0];
+        $table = $entity_type . '__' . $field;
+        $table = str_replace('_value', '', $table);
+        $fields[$key]['date_fields'] = $date_fields;
+        $fields[$key]['table'] = $table;
+        $fields[$key]['field'] = $field;
       }
     }
     $display_options[$option] = $fields;
@@ -1054,7 +1094,7 @@ class ViewsMigration extends SqlBase {
         $data['entity_type'] = $this->views_data[$table][$field]['field']['entity_type'];
         $data['entity_field'] = $data['field'];
       }
-      if(isset($this->viewsData[$entity_type][$field])) {
+      if (isset($this->viewsData[$entity_type][$field])) {
         $data['table'] = $entity_type;
         $data['plugin_id'] = $this->viewsData[$entity_type][$field][$option]['id'];
         if (isset($this->viewsData[$entity_type][$field]['filter']['id'])) {
@@ -1099,6 +1139,28 @@ class ViewsMigration extends SqlBase {
       'promote',
     ];
     foreach ($fields as $key => $data) {
+      if (isset($data['default_argument_type'])) {
+        if (isset($this->typeMap[$data['default_argument_type']])) {
+          $fields[$key]['plugin_id'] = 'datetime_' . $data['granularity'];
+          $fields[$key]['default_argument_type'] = 'fixed';
+          $date_fields = [];
+          foreach ($data['date_fields'] as $key1 => $value1) {
+            $key1 = end(explode('.', $key1));
+            $value1 = end(explode('.', $value1));
+            $date_fields[$key1] = $value1;
+          }
+          $field = array_keys($date_fields)[0];
+          $table = $entity_type . '__' . $field;
+          if (isset($this->viewsData[$table])) {
+          }
+          $fields[$key]['date_fields'] = $date_fields;
+          $fields[$key]['table'] = $table;
+          $fields[$key]['field'] = $field . '_' . $data['granularity'];
+          if (!in_array($data['summary']['format'], $this->pluginList['style'])) {
+            $fields[$key]['summary']['format'] = 'default';
+          }
+        }
+      }
       if (isset($data['table'])) {
         if (isset($this->baseTableArray[$data['table']])) {
           $entity_detail = $this->baseTableArray[$data['table']];
