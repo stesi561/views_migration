@@ -525,6 +525,12 @@ class ViewsMigration extends SqlBase {
     if (isset($display_options['fields'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'fields', $entity_type, $bt);
     }
+    if (isset($display_options['header'])) {
+      $display_options = $this->alterDisplayOptions($display_options, 'header', $entity_type, $bt);
+    }
+    if (isset($display_options['footer'])) {
+      $display_options = $this->alterDisplayOptions($display_options, 'footer', $entity_type, $bt);
+    }
     return $display_options;
   }
 
@@ -633,6 +639,15 @@ class ViewsMigration extends SqlBase {
         $fields[$key]['settings']['format'] = $data['type'];
         $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
         $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
+      }
+      if ($data['field'] == 'area' && isset($data['content']) && ($option = 'header'|| $option = 'footer') {
+        $content_value = str_replace("[", " {{", $data['content']);
+        $content_value = str_replace("]", " }}", $content_value);
+        $content_format = 'basic_html';
+        $fields[$key]['content'] = [
+          'value' => $content_value,
+          'format' => $content_format,
+        ];
       }
       if (isset($data['alter']['text'])) {
         $data['alter']['text'] = str_replace("[", "{", $data['alter']['text']);
