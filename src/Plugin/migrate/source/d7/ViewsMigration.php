@@ -640,7 +640,7 @@ class ViewsMigration extends SqlBase {
         $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
         $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
       }
-      if ($data['field'] == 'area' && isset($data['content']) && ($option = 'header'|| $option = 'footer') {
+      if (($data['field'] == 'area' && isset($data['content']) && ($option = 'header'|| $option = 'footer')) {
         $content_value = str_replace("[", " {{", $data['content']);
         $content_value = str_replace("]", " }}", $content_value);
         $content_format = 'basic_html';
