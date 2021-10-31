@@ -490,8 +490,10 @@ class ViewsMigration extends SqlBase {
       }
     }
     if (isset($display_options['style_plugin'])) {
+      $display_options['style']['type'] = $display_options['style_plugin'];
+      $display_options['style']['options'] = $display_options['style_options'];
       if (!in_array($display_options['style_plugin'], $this->pluginList['style'])) {
-        $display_options['style_plugin'] = 'default';
+        $display_options['style']['type'] = 'default';
       }
     }
     return $display_options;
