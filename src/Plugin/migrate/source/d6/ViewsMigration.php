@@ -9,7 +9,6 @@ use Drupal\migrate\Plugin\migrate\source\SqlBase;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Database\Database;
-use Drupal\views\Views;
 
 /**
  * Drupal 6 views source from database.
@@ -126,9 +125,9 @@ class ViewsMigration extends SqlBase {
   public function query() {
     $query = $this->select('views_view', 'vv')
       ->fields('vv', [
-        'vid', 'name', 'description', 'tag', 'base_table'     
+        'vid', 'name', 'description', 'tag', 'base_table',
       ]);
-    $query->addField('vv','name','human_name');
+    $query->addField('vv', 'name', 'human_name');
     return $query;
   }
 
@@ -192,6 +191,9 @@ class ViewsMigration extends SqlBase {
     return $pluginList;
   }
 
+  /**
+   * ViewsMigration get Views Plugin List.
+   */
   public static function pluginManager($type) {
     return \Drupal::service('plugin.manager.views.' . $type);
   }
@@ -207,7 +209,7 @@ class ViewsMigration extends SqlBase {
    * @param array $base
    *   An array of possible base tables.
    *
-   * @return
+   * @return array
    *   A keyed array of in the form of 'base_table' => 'Description'.
    */
   public function fetchPluginNames($type, $key = NULL, array $base = []) {
@@ -232,7 +234,6 @@ class ViewsMigration extends SqlBase {
 
     return $plugins;
   }
-
 
   /**
    * ViewsMigration get Views formatter List.
@@ -268,7 +269,7 @@ class ViewsMigration extends SqlBase {
     $available_views_tables = array_keys($this->viewsData);
     $name = $row->getSourceProperty('name');
     $name = strtolower($name);
-    $name = preg_replace('/[^a-zA-Z_]/s','_',$name);
+    $name = preg_replace('/[^a-zA-Z_]/s', '_', $name);
     $row->setSourceProperty('name', $name);
     try {
       if (!in_array($base_table, $available_views_tables)) {
@@ -327,11 +328,11 @@ class ViewsMigration extends SqlBase {
       $display_options = unserialize($display_options);
       if (isset($result['display_plugin'])) {
         if (!in_array($result['display_plugin'], $this->pluginList['display'])) {
-          if(isset($display_plugin_map[$result['display_plugin']])){
+          if (isset($display_plugin_map[$result['display_plugin']])) {
             $result['display_plugin'] = $display_plugin_map[$result['display_plugin']];
           }
           else {
-            $result['display_plugin'] = 'default'; 
+            $result['display_plugin'] = 'default';
           }
         }
       }
@@ -342,7 +343,6 @@ class ViewsMigration extends SqlBase {
       $display_options = $this->convertDisplayPlugins($display_options);
       $display_options = $this->convertFieldFormatters($display_options, $entity_type, $entity_base_table);
       $display_options = $this->convertDisplayOptions($display_options, $entity_type, $entity_base_table);
-      // $display_options = $this->removeNonExistFields($display_options, $entity_type, $entity_base_table);
       unset($display_options['header']);
       unset($display_options['footer']);
       unset($display_options['empty']);
@@ -519,7 +519,7 @@ class ViewsMigration extends SqlBase {
     }
     if (isset($display_options['argument_validator'])) {
       $display_options = $this->alterArgumentValidatorDisplayOptions($display_options, 'argument_validator', $entity_type, $bt);
-    }    
+    }
     if (isset($display_options['fields'])) {
       $display_options = $this->alterDisplayOptions($display_options, 'fields', $entity_type, $bt);
     }
@@ -594,26 +594,26 @@ class ViewsMigration extends SqlBase {
     $db_schema = Database::getConnection()->schema();
     $fields = $display_options[$option];
     $optionsMap = [
-      'sorts'=>'sort',
-      'filters'=>'filter',
-      'arguments'=>'argument',
-      'fields'=>'field',
+      'sorts' => 'sort',
+      'filters' => 'filter',
+      'arguments' => 'argument',
+      'fields' => 'field',
     ];
     $doption = $optionsMap[$option];
     $tableMap = [
-      'node'=>'node_field_data',
+      'node' => 'node_field_data',
       'term_data' => 'taxonomy_term_field_data',
       'term_hierarchy' => 'taxonomy_term__parent',
       'term_node' => 'taxonomy_index',
     ];
     $fieldTableMap = [
-      'node_revisions'=>[
-        'body'=>[
+      'node_revisions' => [
+        'body' => [
           'table' => 'node__body',
           'field' => 'body',
           'type' => 'text_default',
         ],
-        'teaser'=>[
+        'teaser' => [
           'table' => 'node__body',
           'field' => 'body',
           'type' => 'text_summary_or_trimmed',
@@ -644,11 +644,12 @@ class ViewsMigration extends SqlBase {
         $fields[$key]['alter']['text'] = str_replace("]", "}}", $data['alter']['text']);
       }
       if (isset($data['table'])) {
-        if(isset($tableMap[$data['table']]))
+        if (isset($tableMap[$data['table']])) {
           $data['table'] = $tableMap[$data['table']];
-        $field = str_ireplace(['_fid','_tid','_uid','_value'], '', $data['field']);
-        $table = str_replace('node_data','node_',$data['table']);
-        if(isset($fieldTableMap[$table][$field])){
+        }
+        $field = str_ireplace(['_fid', '_tid', '_uid', '_value'], '', $data['field']);
+        $table = str_replace('node_data', 'node_', $data['table']);
+        if (isset($fieldTableMap[$table][$field])) {
           $field = $fieldTableMap[$table][$field]['field'];
           $table = $fieldTableMap[$table][$field]['table'];
           $fields[$key]['type'] = $fieldTableMap[$table][$field]['type'];
@@ -656,28 +657,32 @@ class ViewsMigration extends SqlBase {
         if (isset($this->viewsData[$table])) {
           $entity_detail = $this->viewsData[$table];
           $fields[$key]['table'] = $table;
-          
-          if(isset($entity_detail[$field]['entity field'])) {
+
+          if (isset($entity_detail[$field]['entity field'])) {
             $fields[$key]['field'] = $entity_detail[$field]['entity field'];
             $fields[$key]['entity_field'] = $entity_detail[$field]['entity field'];
           }
-          elseif(isset($entity_detail[$field][$doption]['field_name'])) {
+          elseif (isset($entity_detail[$field][$doption]['field_name'])) {
             $fields[$key]['field'] = $entity_detail[$field][$doption]['field_name'];
           }
-          elseif(isset($entity_detail[$field][$doption]['real field'])) {
+          elseif (isset($entity_detail[$field][$doption]['real field'])) {
             $fields[$key]['field'] = $entity_detail[$field][$doption]['real field'];
           }
-          
-          if(isset($entity_detail[$field][$doption]['entity_type']))
+
+          if (isset($entity_detail[$field][$doption]['entity_type'])) {
             $fields[$key]['entity_type'] = $entity_detail[$field][$doption]['entity_type'];
-          elseif(isset($entity_detail[$field]['entity_type']))
+          }
+          elseif (isset($entity_detail[$field]['entity_type'])) {
             $fields[$key]['entity_type'] = $entity_detail[$field]['entity_type'];
-          
-          if($entity_detail[$field]['title']){
-            if(is_object($entity_detail[$field]['title']))
+          }
+
+          if ($entity_detail[$field]['title']) {
+            if (is_object($entity_detail[$field]['title'])) {
               $fields[$key]['label'] = $entity_detail[$field]['title']->__toString();
-            else
+            }
+            else {
               $fields[$key]['label'] = $entity_detail[$field]['title'];
+            }
           }
           $fields[$key]['plugin_id'] = $entity_detail[$field][$doption]['id'];
         }
@@ -702,7 +707,7 @@ class ViewsMigration extends SqlBase {
       }
       if (isset($data['field'])) {
         $types = [
-          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 'comment', 'comment_count', 'last_comment_timestamp','last_comment_uid', 'last_comment_name'
+          'view_node', 'edit_node', 'delete_node', 'cancel_node', 'view_user', 'view_comment', 'edit_comment', 'delete_comment', 'approve_comment', 'replyto_comment', 'comment', 'comment_count', 'last_comment_timestamp', 'last_comment_uid', 'last_comment_name',
         ];
         $table_map = [
           'views_entity_node' => 'node',
@@ -713,7 +718,7 @@ class ViewsMigration extends SqlBase {
         if (in_array($data['field'], $types)) {
           $fields[$key]['table'] = $table_map[$data['table']];
         }
-        if(isset($this->viewsData[$entity_type][$data['field']])) {
+        if (isset($this->viewsData[$entity_type][$data['field']])) {
           $fields[$key]['table'] = $entity_type;
           $fields[$key]['plugin_id'] = $this->viewsData[$entity_type][$data['field']][$option]['id'];
         }
@@ -1038,7 +1043,7 @@ class ViewsMigration extends SqlBase {
         $data['entity_type'] = $this->views_data[$table][$field]['field']['entity_type'];
         $data['entity_field'] = $data['field'];
       }
-      if(isset($this->viewsData[$entity_type][$field])) {
+      if (isset($this->viewsData[$entity_type][$field])) {
         $data['table'] = $entity_type;
         $data['plugin_id'] = $this->viewsData[$entity_type][$field][$option]['id'];
         if (isset($this->viewsData[$entity_type][$field]['filter']['id'])) {
@@ -1140,7 +1145,6 @@ class ViewsMigration extends SqlBase {
     $display_options[$option] = $fields;
     return $display_options;
   }
-
 
   /**
    * ViewsMigration alterArgumentValidatorDisplayOptions.

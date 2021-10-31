@@ -203,7 +203,7 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
-   *
+   * Fetch plugin instance.
    */
   public static function pluginManager($type) {
     return \Drupal::service('plugin.manager.views.' . $type);
@@ -220,7 +220,7 @@ class ViewsMigration extends SqlBase {
    * @param array $base
    *   An array of possible base tables.
    *
-   * @return
+   * @return array
    *   A keyed array of in the form of 'base_table' => 'Description'.
    */
   public function fetchPluginNames($type, $key = NULL, array $base = []) {
