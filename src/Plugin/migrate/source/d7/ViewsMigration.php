@@ -484,9 +484,55 @@ class ViewsMigration extends SqlBase {
         ];
       }
     }
+    if (isset($display_options['menu'])) {
+      $menu_name_map = [
+        'main-menu' => 'main',
+        'management' => 'admin',
+        'navigation' => 'tools',
+        'user-menu' => 'account',
+      ];
+      if (isset($menu_name_map[$display_options['menu']['name']])) {
+        $display_options['menu']['name'] = $menu_name_map[$display_options['menu']['name']];
+      }
+      $display_options['menu']['menu_name'] = $display_options['menu']['name'];
+    }
     if (isset($display_options['row_plugin'])) {
+      $row_plugin_map = [
+        'node' => 'entity:node',
+        'users' => 'entity:user',
+        'taxonomy_term' => 'entity:taxonomy_term',
+        'file_managed' => 'entity:file',
+      ];
+      if ($row_plugin_map[$display_options['row_plugin']]) {
+        $display_options['row_plugin'] = $row_plugin_map[$display_options['row_plugin']];
+      }
+      $display_options['row']['type'] = $display_options['row_plugin'];
       if (!in_array($display_options['row_plugin'], $this->pluginList['row'])) {
-        $display_options['row_plugin'] = 'fields';
+        switch ($display_options['row_plugin']) {
+          case 'node_rss':
+            $rowOptions = $display_options['row_options'];
+            $display_options['row'] = [
+              'type' => $display_options['row_plugin'],
+              'options' => [
+                'relationship' => $rowOptions['relationship'],
+                'view_mode' => $rowOptions['item_length'],
+              ],
+            ];
+            unset($display_options['row_plugin']);
+            unset($display_options['row_options']);
+            break;
+
+          default:
+            $display_options['row_plugin'] = 'fields';
+            break;
+        }
+      }
+      if (isset($display_options['row_options'])) {
+        $rowOptions = $display_options['row_options'];
+        $display_options['row']['options'] = [
+          'relationship' => $rowOptions['relationship'],
+          'view_mode' => $rowOptions['item_length'],
+        ];
       }
     }
     if (isset($display_options['style_plugin'])) {
