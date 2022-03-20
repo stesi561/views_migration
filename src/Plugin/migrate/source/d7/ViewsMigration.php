@@ -9,6 +9,7 @@ use Drupal\migrate\Plugin\migrate\source\SqlBase;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Database\Database;
+use Drupal\migrate\Event\MigrateImportEvent;
 
 /**
  * Drupal 7 views source from database.
@@ -688,7 +689,7 @@ class ViewsMigration extends SqlBase {
         $fields[$key]['settings']['format_custom_true'] = $data['type_custom_true'];
         $fields[$key]['settings']['format_custom_false'] = $data['type_custom_false'];
       }
-      if (($data['field'] == 'area' && isset($data['content']) && ($option = 'header'|| $option = 'footer'))) {
+      if (($data['field'] == 'area' && isset($data['content']) && ($option == 'header'|| $option == 'footer'))) {
         $content_value = str_replace("[", " {{", $data['content']);
         $content_value = str_replace("]", " }}", $content_value);
         $content_format = 'basic_html';
@@ -820,6 +821,10 @@ class ViewsMigration extends SqlBase {
           $fields[$key]['table'] = $entity_type;
           $fields[$key]['plugin_id'] = $this->viewsData[$entity_type][$data['field']][$option]['id'];
         }
+      }
+      if (($data['field'] == 'view' && isset($data['view_to_insert']) && ($option == 'header'|| $option == 'footer'))) {
+        $fields[$key]['plugin_id'] = 'migration_view';
+        $fields[$key]['field'] = 'migration_view';
       }
     }
     $display_options[$option] = $fields;
