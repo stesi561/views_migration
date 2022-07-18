@@ -699,8 +699,8 @@ class ViewsMigration extends SqlBase {
         ];
       }
       if (isset($data['alter']['text'])) {
-        $data['alter']['text'] = str_replace("[", "{", $data['alter']['text']);
-        $fields[$key]['alter']['text'] = str_replace("]", "}", $data['alter']['text']);
+        $data['alter']['text'] = str_replace("[", "{{", $data['alter']['text']);
+        $fields[$key]['alter']['text'] = str_replace("]", "}}", $data['alter']['text']);
       }
       if (isset($data['table'])) {
         if (isset($this->baseTableArray[$data['table']])) {
