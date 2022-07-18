@@ -2,7 +2,7 @@ name: Views Migration
 type: module
 description: 'Migrate views from drupal 7'
 package: Views
-core_version_requirement: ^8.8 || ^9.0
+core_version_requirement: ^8.8 || ^9.0 || ^10
 dependencies:
   - drupal:views
   - drupal:migrate
