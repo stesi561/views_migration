@@ -5,10 +5,10 @@ namespace Drupal\views_migration\Plugin\migrate\source\d6;
 use Drupal\migrate\Row;
 use Drupal\migrate\MigrateSkipRowException;
 use Drupal\migrate\Plugin\MigrateIdMapInterface;
-use Drupal\migrate\Plugin\migrate\source\SqlBase;
 use Drupal\migrate\Plugin\MigrationInterface;
 use Drupal\Core\State\StateInterface;
 use Drupal\Core\Database\Database;
+use Drupal\views_migration\Plugin\migrate\source\BaseViewsMigration;
 
 /**
  * Drupal 6 views source from database.
@@ -18,48 +18,7 @@ use Drupal\Core\Database\Database;
  *   source_module = "views"
  * )
  */
-class ViewsMigration extends SqlBase {
-  /**
-   * Views migration contains base Table array.
-   *
-   * @var baseTableArray
-   */
-  protected $baseTableArray;
-
-  /**
-   * This var entityTableArray based on entity_ids.
-   *
-   * @var baseTableArray
-   */
-  protected $entityTableArray;
-
-  /**
-   * Views PluginList.
-   *
-   * @var pluginList
-   */
-  protected $pluginList;
-
-  /**
-   * Views formatter list.
-   *
-   * @var formatterList
-   */
-  protected $formatterList;
-
-  /**
-   * User Roles.
-   *
-   * @var userRoles
-   */
-  protected $userRoles;
-
-  /**
-   * Views Data.
-   *
-   * @var viewsData
-   */
-  protected $viewsData;
+class ViewsMigration extends BaseViewsMigration {
 
   /**
    * D9 Table.
@@ -68,55 +27,13 @@ class ViewsMigration extends SqlBase {
    */
   protected $siteTables;
 
-  /**
-   * Views Data.
-   *
-   * @var viewsData
-   */
-  protected $viewsRelationshipData;
 
   /**
    * {@inheritdoc}
    */
   public function __construct(array $configuration, $plugin_id, $plugin_definition, MigrationInterface $migration, StateInterface $state) {
     parent::__construct($configuration, $plugin_id, $plugin_definition, $migration, $state);
-    $this->baseTableArray = $this->baseTableArray();
-    $this->entityTableArray = $this->entityTableArray();
-    $this->pluginList = $this->getPluginList();
-    $this->formatterList = $this->getFormatterList();
-    $this->userRoles = $this->getUserRoles();
-    $this->viewsData = $this->d8ViewsData();
     $this->siteTables = array_keys($this->viewsData);
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function fields() {
-    $fields = [
-      "vid" => $this->t("vid"),
-      "name" => $this->t("name"),
-      "description" => $this->t("description"),
-      "tag" => $this->t("tag"),
-      "base_table" => $this->t("base_table"),
-      "human_name" => $this->t("human_name"),
-      "core" => $this->t("core"),
-      "id" => $this->t("id"),
-      "display_title" => $this->t("display_title"),
-      "display_plugin" => $this->t("display_plugin"),
-      "position" => $this->t("position"),
-      "display_options" => $this->t("display_options"),
-    ];
-    return $fields;
-  }
-
-  /**
-   * {@inheritdoc}
-   */
-  public function getIds() {
-    $ids['vid']['type'] = 'integer';
-    $ids['vid']['alias'] = 'vv';
-    return $ids;
   }
 
   /**
@@ -132,126 +49,6 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
-   * ViewsMigration get User Roles.
-   */
-  public function getUserRoles() {
-    $query = $this->select('role', 'r')->fields('r', ['rid', 'name']);
-    $results = $query->execute()->fetchAllAssoc('rid');
-    $userRoles = [];
-    $map = [
-      1 => 'anonymous',
-      2 => 'authenticated',
-    ];
-    foreach ($results as $rid => $role) {
-      // Handle role names with spaces in them.
-      $role_name = str_replace(' ', '_', $role['name']);
-      $userRoles[$rid] = isset($map[$rid]) ? $map[$rid] : $role_name;
-    }
-    return $userRoles;
-  }
-
-  /**
-   * ViewsMigration get User Roles.
-   */
-  public function d8ViewsData() {
-    $viewsData = \Drupal::service('views.views_data')->getAll();
-    return $viewsData;
-  }
-
-  /**
-   * ViewsMigration get Views Plugin List.
-   */
-  public function getPluginList() {
-    $plugins = [
-      'argument' => 'handler',
-      'field' => 'handler',
-      'filter' => 'handler',
-      'relationship' => 'handler',
-      'sort' => 'handler',
-      'access' => 'plugin',
-      'area' => 'handler',
-      'argument_default' => 'plugin',
-      'argument_validator' => 'plugin',
-      'cache' => 'plugin',
-      'display_extender' => 'plugin',
-      'display' => 'plugin',
-      'exposed_form' => 'plugin',
-      'join' => 'plugin',
-      'pager' => 'plugin',
-      'query' => 'plugin',
-      'row' => 'plugin',
-      'style' => 'plugin',
-      'wizard' => 'plugin',
-    ];
-    $pluginList = [];
-    foreach ($plugins as $pluginName => $value) {
-      $pluginNames = $this->fetchPluginNames($pluginName);
-      $pluginList[$pluginName] = array_keys($pluginNames);
-    }
-    return $pluginList;
-  }
-
-  /**
-   * ViewsMigration get Views Plugin List.
-   */
-  public static function pluginManager($type) {
-    return \Drupal::service('plugin.manager.views.' . $type);
-  }
-
-  /**
-   * Fetches a list of all base tables available.
-   *
-   * @param string $type
-   *   Either 'display', 'style' or 'row'.
-   * @param string $key
-   *   For style plugins, this is an optional type to restrict to. May be
-   *   'normal', 'summary', 'feed' or others based on the needs of the display.
-   * @param array $base
-   *   An array of possible base tables.
-   *
-   * @return array
-   *   A keyed array of in the form of 'base_table' => 'Description'.
-   */
-  public function fetchPluginNames($type, $key = NULL, array $base = []) {
-    $definitions = static::pluginManager($type)->getDefinitions();
-    $plugins = [];
-
-    foreach ($definitions as $id => $plugin) {
-      // Skip plugins that don't conform to our key, if they have one.
-      if ($key && isset($plugin['display_types']) && !in_array($key, $plugin['display_types'])) {
-        continue;
-      }
-
-      if (empty($plugin['no_ui']) && (empty($base) || empty($plugin['base']) || array_intersect($base, $plugin['base']))) {
-        $plugins[$id] = isset($plugin['title']) ? $plugin['title'] : $id;
-      }
-    }
-
-    if (!empty($plugins)) {
-      asort($plugins);
-      return $plugins;
-    }
-
-    return $plugins;
-  }
-
-  /**
-   * ViewsMigration get Views formatter List.
-   */
-  public function getFormatterList() {
-    $formatterManager = \Drupal::service('plugin.manager.field.formatter');
-    $formats = $formatterManager->getOptions();
-    $return_formats = [];
-    $all_formats = [];
-    foreach ($formats as $key => $value) {
-      $return_formats['field_type'][$key] = array_keys($value);
-      $all_formats = array_merge($all_formats, array_keys($value));
-    }
-    $return_formats['all_formats'] = $all_formats;
-    return $return_formats;
-  }
-
-  /**
    * ViewsMigration prepareRow.
    *
    * @param \Drupal\migrate\Row $row
@@ -261,6 +58,8 @@ class ViewsMigration extends SqlBase {
     $display_plugin_map = [
       'views_data_export' => 'data_export',
     ];
+    $this->row = $row;
+    $this->view = $row->getSourceProperty('name');
     $vid = $row->getSourceProperty('vid');
     $base_table = $row->getSourceProperty('base_table');
     if ($base_table == 'commerce_product') {
@@ -325,6 +124,7 @@ class ViewsMigration extends SqlBase {
     while ($result = $execute->fetchAssoc()) {
       $display_options = $result['display_options'];
       $id = $result['id'];
+      $this->display = $id;
       $display_options = unserialize($display_options);
       if (isset($result['display_plugin'])) {
         if (!in_array($result['display_plugin'], $this->pluginList['display'])) {
@@ -347,8 +147,11 @@ class ViewsMigration extends SqlBase {
       unset($display_options['footer']);
       unset($display_options['empty']);
       $display[$id]['display_options'] = $display_options;
+      $this->display = NULL;
     }
     $row->setSourceProperty('display', $display);
+    $this->row = NULL;
+    $this->view = NULL;
     return parent::prepareRow($row);
   }
 
@@ -395,10 +198,7 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
-   * ViewsMigration convertDisplayPlugins.
-   *
-   * @param array $display_options
-   *   Views dispaly options.
+   * {@inheritdoc}
    */
   public function convertDisplayPlugins(array $display_options) {
     if (isset($display_options['query']['type'])) {
@@ -573,40 +373,7 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
-   * ViewsMigration baseTableArray.
-   *
-   * This function give the entities base table array.
-   */
-  public function baseTableArray() {
-    $baseTableArray = [];
-    $entity_list_def = \Drupal::entityTypeManager()->getDefinitions();
-    foreach ($entity_list_def as $id => $entity_def) {
-      $base_table = $entity_def->get('base_table');
-      if (!isset($base_table)) {
-        continue;
-      }
-      $data_table = $entity_def->get('data_table');
-      $entity_keys = $entity_def->get('entity_keys');
-      if ($base_table == 'commerce_product') {
-        $data_table = 'commerce_product_variation_field_data';
-        $id = 'commerce_product_variation';
-      }
-      $baseTableArray[$base_table]['entity_id'] = $id;
-      if (!is_null($data_table)) {
-        $baseTableArray[$base_table]['data_table'] = $data_table;
-      }
-      else {
-        $baseTableArray[$base_table]['data_table'] = $base_table;
-      }
-      $baseTableArray[$base_table]['entity_keys'] = $entity_keys;
-    }
-    return $baseTableArray;
-  }
-
-  /**
-   * ViewsMigration baseTableArray.
-   *
-   * This function give the entities base table array.
+   * {@inheritdoc}
    */
   public function entityTableArray() {
     $this->entityTableArray = [];
@@ -863,14 +630,7 @@ class ViewsMigration extends SqlBase {
   }
 
   /**
-   * ViewsMigration convertDisplayOptions.
-   *
-   * @param array $display_options
-   *   Views dispaly options.
-   * @param string $entity_type
-   *   Views base entity type.
-   * @param string $bt
-   *   Views base table.
+   * {@inheritdoc}
    */
   public function alterRelationshipsDisplayOptions(array $display_options, string $entity_type, string $bt) {
     $views_relationships = $this->viewsRelationshipData;
@@ -1453,39 +1213,6 @@ class ViewsMigration extends SqlBase {
     }
     $fields[$key]['table'] = $table;
     return $fields[$key];
-  }
-
-  /**
-   * ViewsMigration removeNonExistFields.
-   *
-   * @param array $display_options
-   *   Views dispaly options.
-   * @param string $entity_type
-   *   Views base entity type.
-   * @param string $bt
-   *   Views base table.
-   */
-  public function removeNonExistFields(array $display_options, string $entity_type, string $bt) {
-    $options = [
-      'fields',
-      'filters',
-      'arguments',
-      'relationships',
-      'sorts',
-      'footer',
-      'empty',
-    ];
-    $available_views_tables = array_keys($this->viewsData);
-    foreach ($options as $key => $option) {
-      if (isset($display_options[$option])) {
-        foreach ($display_options[$option] as $field_id => $field) {
-          if (!in_array($field['table'], $available_views_tables)) {
-            unset($display_options[$option][$field_id]);
-          }
-        }
-      }
-    }
-    return $display_options;
   }
 
 }
