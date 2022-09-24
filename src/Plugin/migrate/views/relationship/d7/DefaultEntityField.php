@@ -34,6 +34,9 @@ class DefaultEntityField extends MigrateViewsHandlerPluginBase {
       $field_name = $this->infoProvider->getEntityFieldName();
       $handler_config['table'] = $this->infoProvider->getRelationshipEntityType($handler_config) . '__' . $field_name;
       $handler_config['field'] = $field_name;
+      $handler_config['plugin_id'] = 'standard';
+      $handler_config['admin_label'] = $handler_config['label'];
+      $this->alterEntityIdField($handler_config);
     }
   }
 

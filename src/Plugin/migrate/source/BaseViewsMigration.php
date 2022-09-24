@@ -104,6 +104,7 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
     $this->formatterList = $this->getFormatterList();
     $this->userRoles = $this->getUserRoles();
     $this->viewsData = $this->d8ViewsData();
+    $this->typeMap = $this->getTypeMap();
   }
 
   /**
@@ -125,6 +126,19 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
       "display_options" => $this->t("display_options"),
     ];
   }
+
+  /**
+   * {@inheritdoc}
+   */
+  private function getTypeMap() {
+    $typeMap = [
+      'datetime' => 'datetime',
+      'date' => 'datetime',
+      'datestamp' => 'timestamp',
+    ];
+    return $typeMap;
+  }
+
 
   /**
    * {@inheritdoc}
@@ -510,7 +524,6 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
       'cache-control' => 'cache_control',
     ];
     if (isset($display_options['metatags'])) {
-      print_r($display_options['metatags']);
       $metatagsNew = [];
       foreach ($display_options['metatags'] as $langCode => $metatags) {
         foreach ($metatags as $key => $value) {
@@ -530,7 +543,6 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
         'metatags' => $metatagsNew,
         'tokenize' => TRUE
       ];
-      print_r($display_options['display_extenders']['metatag_display_extender']);
       
       unset($display_options['metatags']);
     }
@@ -562,6 +574,10 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
       $fields = $display_options[$option];
       foreach ($fields as $key => $data) {
         $this->getViewsHandlerMigratePlugin($handler, $this->getSourceHandlerInfoProvider($data, $display_options, $entity_type))->alterHandlerConfig($data);
+        if(is_array($data) && isset($data['php_output'])){
+          unset($display_options[$option][$key]);
+          continue;
+        }
         $display_options[$option][$key] = $data;
       }
       if ($this->display === 'default') {

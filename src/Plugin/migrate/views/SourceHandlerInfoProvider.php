@@ -175,6 +175,27 @@ class SourceHandlerInfoProvider {
     return in_array($entity_id_check, $entity_ids, TRUE);
   }
 
+
+  /**
+   * Determines if the Views Field provided represents an entity id.
+   *
+   * @param string $field
+   *   The field to check.
+   *
+   * @return bool
+   */
+  public function isEntityReferenceField(array $handler_config) {
+    $entityType = $this->getRelationshipEntityType($handler_config);
+    $fieldStorageConfig = FieldStorageConfig::loadByName($entityType, $handler_config['field']);
+    if ($fieldStorageConfig) {
+      $target_type = $fieldStorageConfig->getSetting('target_type');
+      if($target_type){
+        return true;
+      }
+    }
+    return false;
+  }
+
   /**
    * Determine the entity type of the provided Relationship Handler.
    *

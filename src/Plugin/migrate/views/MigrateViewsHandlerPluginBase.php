@@ -102,6 +102,9 @@ abstract class MigrateViewsHandlerPluginBase extends MigrateViewsPluginBase impl
     if ($this->infoProvider->isEntityIdField($handler_config['field'])) {
       $handler_config['field'] = substr($handler_config['field'], 0, -4) . '_target_id';
     }
+    elseif ($this->infoProvider->isEntityReferenceField($handler_config)) {
+      $handler_config['field'] .= '_target_id';
+    }
   }
 
   /**
