@@ -44,7 +44,12 @@ class PluginEventSubscriber implements EventSubscriberInterface {
         $config->set('display',$displays);
         $config->save();
         $view = $viewStorage->load($view_id);
-        $view->save();
+        if($view){
+          $view->save();
+        }
+        else {
+          $config->delete();
+        }
       }
     }
   }

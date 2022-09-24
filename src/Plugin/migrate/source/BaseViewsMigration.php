@@ -488,7 +488,52 @@ abstract class BaseViewsMigration extends SqlBase implements ViewsMigrationInter
       }
       $display_options['menu']['menu_name'] = $display_options['menu']['name'];
     }
+    if (isset($display_options['metatags'])) {
+      $this->prepareMetatags($display_options);
+    }
     return $display_options;
+  }
+
+
+  /**
+   * {@inheritdoc}
+   */
+  public function prepareMetatags(array &$display_options) {
+    $keyMap = [
+      'canonical' => 'canonical_url',
+      'content-language' => 'content_language',
+      'geo.position' => 'geo_position',
+      'geo.placename' => 'geo_placename',
+      'geo.region' => 'geo_region',
+      'original-source' => 'original_source',
+      'revisit-after' => 'revisit_after',
+      'cache-control' => 'cache_control',
+    ];
+    if (isset($display_options['metatags'])) {
+      print_r($display_options['metatags']);
+      $metatagsNew = [];
+      foreach ($display_options['metatags'] as $langCode => $metatags) {
+        foreach ($metatags as $key => $value) {
+          if(isset($keyMap[$key])){
+            $key = $keyMap[$key];
+          }
+          if(is_array($value['value'])) {
+            $value = implode(',', array_keys($value['value']));
+          }
+          else {
+            $value = $value['value'];
+          }
+          $metatagsNew[$key] = $value;
+        }
+      }
+      $display_options['display_extenders']['metatag_display_extender']=[
+        'metatags' => $metatagsNew,
+        'tokenize' => TRUE
+      ];
+      print_r($display_options['display_extenders']['metatag_display_extender']);
+      
+      unset($display_options['metatags']);
+    }
   }
 
   /**
