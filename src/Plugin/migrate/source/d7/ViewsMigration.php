@@ -25,7 +25,8 @@ class ViewsMigration extends BaseViewsMigration {
     $query = $this->select('views_view', 'vv')
       ->fields('vv', [
         'vid', 'name', 'description', 'tag', 'base_table', 'human_name', 'core',
-      ]);
+]);
+    $query->where('vv.vid = 134');
     return $query;
   }
 
@@ -101,7 +102,27 @@ class ViewsMigration extends BaseViewsMigration {
       }
       $display[$id]['display_options'] = $this->convertDisplayPlugins($display[$id]['display_options']);
       $display[$id]['display_options'] = $this->convertHandlerDisplayOptions($display[$id]['display_options'], $entity_type);
+
+      // Debugging help figure out before and after.
+      //file_put_contents('/tmp/views-migration-debug-before.log', var_export($display[$id]['display_options'], TRUE));
+      //
+
+      $display[$id]['display_options'] = $this->fixCiviCRMEntityRelationships($display[$id]['display_options']);
+
+      // Debugging check what we did worked
+      //foreach($display[$id]['display_options']['fields'] as $dok => $dov) {
+      //  var_export(
+      //    [
+      //    $dok => $dov['relationship']
+      //    ]);
+      //}
+      
+      
       $display[$id]['display_options'] = $this->removeNonExistFields($display[$id]['display_options']);
+
+      // Debugging after
+      //file_put_contents('/tmp/views-migration-debug-after.log', var_export($display[$id]['display_options'], TRUE));
+
       $this->logBrokenHandlers($display[$id]['display_options']);
       $this->display = NULL;
     }
@@ -111,4 +132,62 @@ class ViewsMigration extends BaseViewsMigration {
     return parent::prepareRow($row);
   }
 
+  private function fixCiviCRMEntityRelationships(array $display_options) {
+    $relationship_key_mapping = [];
+    $field_key_mapping = [];
+    foreach($display_options['relationships'] as $r_key => $relationship_options) {
+      switch($r_key) {
+      case 'relationship_id_a':
+      case 'relationship_id_b':
+        $direction = substr($r_key, -1);
+        $new_relationship = $relationship_options;        
+        $new_relationship['id'] = 'reverse__civicrm_relationship__contact_id_' . $direction;
+        $new_relationship['field']  = 'reverse__civicrm_relationship__contact_id_' . $direction;
+        $new_relationship['plugin_id'] = 'civicrm_entity_civicrm_relationship';        
+        break;
+      case 'contact_id_a_':
+      case 'contact_id_b_':
+        $direction = substr($r_key, -2, 1);
+        $new_relationship = $relationship_options;
+        $new_relationship['id'] = 'contact_id_' . $direction;
+        $new_relationship['field']  = 'contact_id_' . $direction;
+        $new_relationship['plugin_id'] = 'civicrm_entity_civicrm_relationship';        
+        break;
+      default:
+        continue 2;
+      }
+      $relationship_key_mapping[$r_key] = $new_relationship['id'];
+                                                         
+      if (!empty($new_relationship['relationship']) && $new_relationship['relationship'] != 'none') {
+        if (!empty($relationship_key_mapping[$new_relationship['relationship']])) {
+          $new_relationship['relationship'] = $relationship_key_mapping[$new_relationship['relationship']];
+        }
+      }
+
+      $display_options['relationships'][$new_relationship['id']] = $new_relationship;
+      
+      
+    
+      unset($display_options['relationships'][$r_key]);
+    }
+    // Update fields based on the relationship - do outside of the
+    // loop so we only checking each field once.
+    foreach($display_options['fields'] as $field_key => &$field_options) {
+      if (empty($field_options['relationship'])) {
+        continue;
+      }
+      
+      $old_relationship_id = $field_options['relationship'];
+      if (!empty($relationship_key_mapping[$old_relationship_id])) {
+        $new_relationship_id = $relationship_key_mapping[$old_relationship_id];
+        $field_options['relationship'] = $new_relationship_id;
+      }
+      
+    }
+    //var_export([
+    //  'display_options new relationships' => $display_options['relationships'],
+    //  'display options new fields' => $display_options['fields'],
+    //]);
+    return $display_options;
+  }
 }
